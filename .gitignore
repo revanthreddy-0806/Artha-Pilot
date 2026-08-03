@@ -1,0 +1,88 @@
+# ============================================================
+# Artha Pilot - .gitignore
+# ============================================================
+
+# ---------- Python / Backend ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.pyd
+.venv/
+venv/
+env/
+ENV/
+.python-version
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.pyc
+coverage.xml
+
+# ---------- Environment / Secrets ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---------- Database ----------
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+pgdata/
+
+# ---------- Docker ----------
+docker-compose.override.yml
+
+# ---------- Android / Gradle ----------
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/captures/
+android/.cxx/
+android/local.properties
+android/**/generated/
+*.apk
+*.aab
+*.keystore
+*.jks
+*.hprof
+
+# ---------- IDEs / Editors ----------
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ---------- Logs ----------
+logs/
+*.log
+*.log.*
+
+# ---------- Local runtime data ----------
+storage/
+uploads/
+tmp/
+
+# ---------- Generated test fixtures ----------
+backend/tests/fixtures/sample_statement.pdf
+
+# ---------- GitHub ----------
+.github/**
+!.github/workflows/**

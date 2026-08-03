@@ -1,0 +1,62 @@
+"""Repository pattern: persistence access for Statement aggregate."""
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.domain.entities import ParseStatus
+from app.models.statement import Statement
+
+
+class StatementRepository:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def create(
+        self,
+        user_id: int,
+        filename: str,
+        file_type: str,
+    ) -> Statement:
+        statement = Statement(user_id=user_id, filename=filename, file_type=file_type)
+        self._db.add(statement)
+        self._db.flush()
+        return statement
+
+    def get_for_user(self, statement_id: int, user_id: int) -> Statement | None:
+        return self._db.scalar(
+            select(Statement).where(Statement.id == statement_id, Statement.user_id == user_id)
+        )
+
+    def list_for_user(self, user_id: int, limit: int = 50) -> list[Statement]:
+        return list(
+            self._db.scalars(
+                select(Statement)
+                .where(Statement.user_id == user_id)
+                .order_by(Statement.created_at.desc())
+                .limit(limit)
+            )
+        )
+
+    def mark_processed(
+        self,
+        statement: Statement,
+        *,
+        bank_name: str | None,
+        account_number: str | None,
+        period_start,
+        period_end,
+        transaction_count: int,
+    ) -> None:
+        statement.bank_name = bank_name
+        statement.account_number = account_number
+        statement.period_start = period_start
+        statement.period_end = period_end
+        statement.transaction_count = transaction_count
+        statement.parse_status = ParseStatus.PROCESSED
+        statement.error_message = None
+
+    def mark_failed(self, statement: Statement, error_message: str) -> None:
+        statement.parse_status = ParseStatus.FAILED
+        statement.error_message = error_message[:2000]
+
+    def commit(self) -> None:
+        self._db.commit()
