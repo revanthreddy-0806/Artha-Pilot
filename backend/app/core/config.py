@@ -1,7 +1,14 @@
 """Application configuration loaded from environment variables."""
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_SECRET_KEYS = {
+    "dev-only-secret-change-me",
+    "change-me-in-production",
+    "generate-a-strong-random-secret",
+}
 
 
 class Settings(BaseSettings):
@@ -23,13 +30,27 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # CORS
+    CORS_ORIGINS: list[str] = ["*"]
+
     # Uploads
     MAX_UPLOAD_MB: int = 10
-    UPLOAD_DIR: str = "uploads"
 
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() == "production"
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.MAX_UPLOAD_MB * 1024 * 1024
+
+    @model_validator(mode="after")
+    def _guard_production_secret(self) -> "Settings":
+        if self.is_production and self.JWT_SECRET_KEY in DEFAULT_SECRET_KEYS:
+            raise ValueError(
+                "JWT_SECRET_KEY must be overridden with a strong random secret in production"
+            )
+        return self
 
 
 @lru_cache

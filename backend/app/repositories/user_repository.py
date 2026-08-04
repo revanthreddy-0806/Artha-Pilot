@@ -21,3 +21,6 @@ class UserRepository:
         self._db.commit()
         self._db.refresh(user)
         return user
+
+    def rollback(self) -> None:
+        self._db.rollback()

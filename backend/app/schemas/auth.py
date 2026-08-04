@@ -5,12 +5,13 @@ import re
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 PASSWORD_MIN = 8
+PASSWORD_MAX_BYTES = 72
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=2, max_length=120)
-    password: str = Field(min_length=PASSWORD_MIN, max_length=128)
+    password: str = Field(min_length=PASSWORD_MIN)
 
     @field_validator("password")
     @classmethod
@@ -21,6 +22,8 @@ class RegisterRequest(BaseModel):
             raise ValueError("password must contain a lowercase letter")
         if not re.search(r"\d", v):
             raise ValueError("password must contain a digit")
+        if len(v.encode("utf-8")) > PASSWORD_MAX_BYTES:
+            raise ValueError("password must be at most 72 bytes (bcrypt limit)")
         return v
 
 

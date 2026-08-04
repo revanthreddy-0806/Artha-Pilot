@@ -1,13 +1,15 @@
 """Statement ingestion business logic: upload, parse, categorize, persist."""
 import logging
+import os
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.domain.entities import ParsedStatement
 from app.ml.classifier import categorize_many
 from app.models.statement import Statement
-from app.models.transaction import Transaction, TransactionType
+from app.models.transaction import Transaction
 from app.parsers import parse_statement
 from app.repositories.statement_repository import StatementRepository
 from app.repositories.transaction_repository import TransactionRepository
@@ -15,7 +17,7 @@ from app.repositories.transaction_repository import TransactionRepository
 logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {".csv": "csv", ".pdf": "pdf"}
-MAX_FILE_BYTES = 10 * 1024 * 1024
+MAX_FILENAME_LENGTH = 255
 
 
 class StatementService:
@@ -25,6 +27,7 @@ class StatementService:
 
     def ingest(self, user_id: int, filename: str, content: bytes) -> Statement:
         file_type = self._validate_file(filename, content)
+        filename = _sanitize_filename(filename)
 
         statement = self._statements.create(user_id, filename, file_type)
         try:
@@ -48,9 +51,10 @@ class StatementService:
 
     @staticmethod
     def _validate_file(filename: str, content: bytes) -> str:
-        if len(content) > MAX_FILE_BYTES:
+        max_bytes = get_settings().max_upload_bytes
+        if len(content) > max_bytes:
             raise AppError(
-                f"File exceeds {MAX_FILE_BYTES // (1024 * 1024)} MB limit",
+                f"File exceeds {max_bytes // (1024 * 1024)} MB limit",
                 status_code=413,
                 error_code="file_too_large",
             )
@@ -95,3 +99,14 @@ class StatementService:
         )
         self._transactions.bulk_create(rows)
         return statement
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Strip any path components and truncate to the column limit, keeping the extension."""
+    clean = os.path.basename(filename.replace("\\", "/")).strip()
+    if not clean:
+        return "statement"
+    if len(clean) <= MAX_FILENAME_LENGTH:
+        return clean
+    stem, ext = os.path.splitext(clean)
+    return stem[: MAX_FILENAME_LENGTH - len(ext)] + ext

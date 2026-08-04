@@ -11,6 +11,7 @@ from app.core.security import decode_token
 from app.db import get_db
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,20 @@ def get_current_user(
             status_code=401,
             error_code="invalid_token",
         )
-    user = UserRepository(db).get_by_id(int(subject))
+    try:
+        user_id = int(subject)
+    except ValueError:
+        raise AppError(
+            "Invalid or expired access token",
+            status_code=401,
+            error_code="invalid_token",
+        ) from None
+    user = UserRepository(db).get_by_id(user_id)
     if user is None or not user.is_active:
         raise AppError("Account not found or disabled", status_code=401, error_code="invalid_token")
     return user
+
+
+def get_auth_service(db: Annotated[Session, Depends(get_db)]) -> AuthService:
+    """Per-request AuthService (cached by FastAPI for the request lifetime)."""
+    return AuthService(db)

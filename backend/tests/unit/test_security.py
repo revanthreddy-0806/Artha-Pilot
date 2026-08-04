@@ -36,6 +36,13 @@ def test_refresh_token_roundtrip():
     assert decode_token(token, "refresh") == "42"
 
 
+def test_refresh_token_carries_jti():
+    token = create_refresh_token("42")
+    payload = jwt.decode(token, get_settings().JWT_SECRET_KEY, algorithms=["HS256"])
+    assert payload["jti"]
+    assert len(payload["jti"]) == 32
+
+
 def test_token_type_mismatch():
     access = create_access_token("42")
     assert decode_token(access, "refresh") is None

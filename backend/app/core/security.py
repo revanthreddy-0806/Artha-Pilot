@@ -1,5 +1,6 @@
 """Security primitives: bcrypt password hashing and JWT token handling."""
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -29,7 +30,7 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> str:
+def _create_token(subject: str, token_type: str, expires_delta: timedelta, jti: str | None = None) -> str:
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "sub": subject,
@@ -37,6 +38,8 @@ def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> st
         "iat": now,
         "exp": now + expires_delta,
     }
+    if jti is not None:
+        payload["jti"] = jti
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -53,11 +56,20 @@ def create_refresh_token(subject: str) -> str:
         subject,
         "refresh",
         timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        jti=uuid.uuid4().hex,
     )
 
 
 def decode_token(token: str, expected_type: str) -> str | None:
     """Decode and validate a JWT. Returns the subject (user id) or None on failure."""
+    payload = decode_token_details(token, expected_type)
+    if payload is None:
+        return None
+    return payload.get("sub")
+
+
+def decode_token_details(token: str, expected_type: str) -> dict[str, Any] | None:
+    """Decode and validate a JWT, returning the full payload (subject, jti, exp...)."""
     try:
         payload = jwt.decode(
             token,
@@ -70,4 +82,4 @@ def decode_token(token: str, expected_type: str) -> str | None:
     if payload.get("type") != expected_type:
         logger.debug("Token type mismatch: expected=%s", expected_type)
         return None
-    return payload.get("sub")
+    return payload

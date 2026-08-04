@@ -1,4 +1,11 @@
 """Integration tests for statement upload and parsing."""
+import pytest
+
+from app.core.config import Settings
+from app.core.errors import AppError
+from app.services.statement_service import StatementService
+
+
 def test_upload_csv_success(client, auth_headers, sample_csv_bytes):
     resp = client.post(
         "/api/v1/statements/upload",
@@ -69,3 +76,54 @@ def test_upload_requires_auth(client, sample_csv_bytes):
         files={"file": ("statement.csv", sample_csv_bytes, "text/csv")},
     )
     assert resp.status_code == 401
+
+
+def test_upload_sanitizes_path_traversal_filename(client, auth_headers, sample_csv_bytes):
+    resp = client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("../../etc/evil.csv", sample_csv_bytes, "text/csv")},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["filename"] == "evil.csv"
+
+
+def test_upload_truncates_overlong_filename(client, auth_headers, sample_csv_bytes):
+    long_name = "a" * 300 + ".csv"
+    resp = client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": (long_name, sample_csv_bytes, "text/csv")},
+    )
+    assert resp.status_code == 201
+    assert len(resp.json()["filename"]) == 255
+    assert resp.json()["filename"].endswith(".csv")
+
+
+def test_upload_rejects_oversize_content_length(client, auth_headers, sample_csv_bytes, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.v1.statements.get_settings",
+        lambda: Settings(MAX_UPLOAD_MB=1),
+    )
+    big = b"x" * (2 * 1024 * 1024)
+    resp = client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("big.csv", big, "text/csv")},
+    )
+    assert resp.status_code == 413
+    assert resp.json()["error"]["code"] == "file_too_large"
+
+
+def test_service_rejects_oversize_content(client, db_session, monkeypatch):
+    from app.repositories.user_repository import UserRepository
+
+    user = UserRepository(db_session).create("big@example.com", "Big", "hash")
+    monkeypatch.setattr(
+        "app.services.statement_service.get_settings",
+        lambda: Settings(MAX_UPLOAD_MB=1),
+    )
+    with pytest.raises(AppError) as exc_info:
+        StatementService(db_session).ingest(user.id, "big.csv", b"x" * (2 * 1024 * 1024))
+    assert exc_info.value.status_code == 413
+    assert exc_info.value.error_code == "file_too_large"
