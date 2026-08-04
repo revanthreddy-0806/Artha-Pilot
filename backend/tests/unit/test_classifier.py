@@ -12,6 +12,13 @@ def test_rule_based_categories():
     assert categorize("mutual fund sip payment")[0] == "Investments"
 
 
+def test_longest_keyword_rule_wins():
+    assert categorize("AMAZON PRIME RENEWAL")[0] == "Bills & Recurring"
+    assert categorize("AMAZON PRIME VIDEO")[0] == "Entertainment"
+    assert categorize("AMAZON SHOPPING")[0] == "Shopping"
+    assert categorize("PRIME VIDEO RENEWAL")[0] == "Entertainment"
+
+
 def test_ml_prediction_on_seed_data():
     category, confidence = categorize("biryani house order")
     assert category == "Food & Dining"

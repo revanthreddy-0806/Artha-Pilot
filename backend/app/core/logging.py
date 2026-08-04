@@ -1,7 +1,6 @@
 """Structured logging configuration."""
 import logging
 import sys
-from typing import Any
 
 
 class LogFormatter(logging.Formatter):
@@ -22,7 +21,3 @@ def setup_logging(level: str = "INFO") -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level.upper())
-
-
-def get_logger(name: str) -> logging.Logger:
-    return logging.getLogger(name)

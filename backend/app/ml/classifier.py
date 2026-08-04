@@ -32,10 +32,15 @@ def normalize(text: str) -> str:
 
 
 def _match_rules(description: str) -> str | None:
+    """Best-match keyword rules: the longest matching keyword wins."""
+    lowered = description.lower()
+    best: str | None = None
+    best_len = 0
     for keyword, category in RULE_KEYWORDS.items():
-        if keyword.lower() in description.lower():
-            return category
-    return None
+        if keyword.lower() in lowered and len(keyword) > best_len:
+            best = category
+            best_len = len(keyword)
+    return best
 
 
 def _ensure_model() -> None:

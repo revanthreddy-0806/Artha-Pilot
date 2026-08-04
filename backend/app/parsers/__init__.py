@@ -24,10 +24,7 @@ def get_parser(file_type: str) -> StatementParser:
 def parse_statement(content: bytes, filename: str, file_type: str) -> ParsedStatement:
     parser = get_parser(file_type)
     try:
-        result = parser.parse(content, filename)
-    except ValueError:
-        raise
+        return parser.parse(content, filename)
     except Exception as exc:
         logger.exception("Unexpected parsing error for %s", filename)
         raise ValueError(f"Failed to parse statement: {exc}") from exc
-    return result

@@ -1,7 +1,7 @@
 """Curated seed dataset for training the transaction classifier.
 
 Each entry is (description, category). Descriptions are normalized to
-uppercase without separators before matching, mirroring production
+lowercase alphanumeric tokens before matching, mirroring production
 preprocessing, so patterns stay consistent.
 """
 
@@ -257,6 +257,8 @@ RULE_KEYWORDS: dict[str, str] = {
     "NETFLIX": "Entertainment",
     "SPOTIFY": "Entertainment",
     "PRIME VIDEO": "Entertainment",
+    "AMAZON PRIME VIDEO": "Entertainment",
+    "AMAZON PRIME": "Bills & Recurring",
     "MOVIE": "Entertainment",
     "GAMING": "Entertainment",
     "FUEL": "Transport",
@@ -298,7 +300,6 @@ RULE_KEYWORDS: dict[str, str] = {
     "ELECTRONICS": "Shopping",
     "CLOTHING": "Shopping",
     "FOOTWEAR": "Shopping",
-    "IRCTC": "Travel",
     "EMI": "Bills & Recurring",
     "CREDIT CARD": "Bills & Recurring",
     "INSURANCE": "Bills & Recurring",

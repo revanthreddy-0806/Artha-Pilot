@@ -1,16 +1,11 @@
 """Transaction ORM model."""
 from datetime import date, datetime
-from enum import Enum
 
 from sqlalchemy import Date, DateTime, Enum as SqlEnum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
-
-
-class TransactionType(str, Enum):
-    CREDIT = "credit"
-    DEBIT = "debit"
+from app.domain.entities import TransactionType
 
 
 class Transaction(Base):

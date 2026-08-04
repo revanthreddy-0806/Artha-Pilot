@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,18 @@ def register_exception_handlers(app: FastAPI) -> None:
             "Request validation failed",
             _sanitize_validation_errors(exc.errors()),
         )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        codes = {
+            401: ("unauthorized", "Authentication failed"),
+            403: ("forbidden", "You do not have permission to perform this action"),
+            404: ("not_found", "The requested resource was not found"),
+            405: ("method_not_allowed", "This method is not allowed for this resource"),
+        }
+        error_code, message = codes.get(exc.status_code, ("http_error", str(exc.detail)))
+        logger.info("HTTP %s on %s %s", exc.status_code, request.method, request.url.path)
+        return _error_response(exc.status_code, error_code, message)
 
     @app.exception_handler(Exception)
     async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:

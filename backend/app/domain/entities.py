@@ -1,6 +1,6 @@
 """Pure domain entities, independent of persistence and transport."""
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from enum import Enum
 
 
@@ -13,15 +13,6 @@ class ParseStatus(str, Enum):
     PENDING = "pending"
     PROCESSED = "processed"
     FAILED = "failed"
-
-
-@dataclass(slots=True)
-class User:
-    id: int
-    email: str
-    full_name: str
-    is_active: bool = True
-    created_at: datetime = field(default_factory=datetime.utcnow)
 
 
 @dataclass(slots=True)

@@ -1,4 +1,6 @@
 """Repository pattern: persistence access for Statement aggregate."""
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -42,8 +44,8 @@ class StatementRepository:
         *,
         bank_name: str | None,
         account_number: str | None,
-        period_start,
-        period_end,
+        period_start: date | None,
+        period_end: date | None,
         transaction_count: int,
     ) -> None:
         statement.bank_name = bank_name
