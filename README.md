@@ -63,7 +63,7 @@ Clean Architecture + layered design (API → Services → Repositories → Domai
 
 **Android:** MVVM with Jetpack Compose; Hilt DI; Retrofit + OkHttp (auth interceptor + refresh authenticator); Room with SQLCipher encryption (passphrase sealed in Android Keystore); DataStore Preferences for the JWT pair; offline cache mirrors the last successful fetch.
 
-See [ENGINEERING_REPORT.md](ENGINEERING_REPORT.md) for detailed architecture, schema, API reference, and phase status.
+See [ENGINEERING_REPORT.md](ENGINEERING_REPORT.md) for detailed architecture, schema, API reference, and phase status. Release-readiness status and Go/No-Go: [RELEASE_READINESS_REPORT.md](RELEASE_READINESS_REPORT.md).
 
 ## Development Workflow
 

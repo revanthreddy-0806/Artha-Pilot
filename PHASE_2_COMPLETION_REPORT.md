@@ -18,7 +18,7 @@
 | Transaction browsing | Home dashboard: monthly expense summary, category breakdown, transaction list with balance + category chips | ✅ |
 | Infinite pagination | Page size 50 with `hasMore` guard; next page auto-fetched on scroll | ✅ |
 | Category correction | Users can correct a transaction's category; PATCH round-trips to server | ✅ |
-| Offline cache | Last successful fetch mirrored into Room; screen renders from cache when offline | ✅ |
+| Offline cache | Last successful fetch mirrored into Room; on network failure the Home screen renders the cached snapshot with an offline banner | ✅ |
 | Encrypted storage | Room DB encrypted with SQLCipher 4.17.0; 32-byte random passphrase sealed (AES/GCM) in Android Keystore | ✅ |
 | Backup protection | `allowBackup=false`, `fullBackupContent=false`, `dataExtractionRules` exclude all data | ✅ |
 | Session management | Logout clears DataStore tokens + Room data (server token invalidated via `/auth/logout`) | ✅ |
@@ -80,12 +80,14 @@ Error contract: all failures map through `ApiErrorMapper` → sealed `ApiExcepti
 | Metric | Value |
 |---|---|
 | Unit test suites | 6 |
-| Unit tests | **36** |
+| Unit tests | **37** |
 | Failures | **0** |
 | Gate command | `.\gradlew.bat :app:testDebugUnitTest` |
 | MockWebServer integration tests | 7 (ArthaApiTest) |
-| ViewModel tests | 11 (AuthViewModelTest 6 + TransactionsViewModelTest 5) |
+| ViewModel tests | 13 (AuthViewModelTest 6 + TransactionsViewModelTest 7) |
 | Mapper / error mapping tests | 18 (MappersTest 7 + ApiErrorMapperTest 6 + ApiExceptionTest 5) |
+| Backend suite (Phase 1 + 1.5) | 96/96 |
+| UAT (live Dockerized backend) | 19/19 PASS — register, login, CSV+PDF upload, browse/paginate/filter, category correction, refresh rotation, expired-token 401, logout semantics |
 | Coverage of pure JVM logic | ~90% of JVM-testable classes |
 | Not covered (needs emulator) | Room DAOs, SQLCipher, DataStore-backed TokenStore, Compose UI, TokenAuthenticator |
 
