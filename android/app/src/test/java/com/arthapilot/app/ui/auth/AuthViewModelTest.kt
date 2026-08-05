@@ -8,7 +8,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -44,6 +47,7 @@ class AuthViewModelTest {
     @Test
     fun `successful login transitions to authenticated`() = runTest(dispatcher) {
         val viewModel = AuthViewModel(FakeAuthRepository())
+        collectAuthState(viewModel)
         viewModel.onEmailChange("ada@x.com")
         viewModel.onPasswordChange("password123")
         viewModel.login()
@@ -81,6 +85,7 @@ class AuthViewModelTest {
     @Test
     fun `successful registration transitions to authenticated`() = runTest(dispatcher) {
         val viewModel = AuthViewModel(FakeAuthRepository())
+        collectAuthState(viewModel)
         viewModel.onFullNameChange("Ada Lovelace")
         viewModel.onEmailChange("ada@x.com")
         viewModel.onPasswordChange("password123")
@@ -92,6 +97,7 @@ class AuthViewModelTest {
     @Test
     fun `logout returns to unauthenticated`() = runTest(dispatcher) {
         val viewModel = AuthViewModel(FakeAuthRepository())
+        collectAuthState(viewModel)
         viewModel.onEmailChange("ada@x.com")
         viewModel.onPasswordChange("password123")
         viewModel.login()
@@ -101,6 +107,10 @@ class AuthViewModelTest {
         viewModel.logout()
         advanceUntilIdle()
         assertEquals(AuthState.Unauthenticated, viewModel.authState.value)
+    }
+
+    private fun TestScope.collectAuthState(viewModel: AuthViewModel) {
+        backgroundScope.launch { viewModel.authState.collect() }
     }
 
     private class FakeAuthRepository : AuthRepository {

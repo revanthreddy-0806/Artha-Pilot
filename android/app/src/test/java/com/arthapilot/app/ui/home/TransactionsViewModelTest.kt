@@ -85,11 +85,25 @@ class TransactionsViewModelTest {
     }
 
     @Test
-    fun `fetch failure surfaces user message`() = runTest(dispatcher) {
+    fun `fetch failure falls back to cached transactions offline`() = runTest(dispatcher) {
         val repo = FakeTransactionRepository().apply {
-            fail = ApiException.Network()
-            pages.addLast(TransactionPage(items = transactions(1), total = 1, page = 1, pageSize = 50))
+            pages.addLast(TransactionPage(items = transactions(1, 2), total = 2, page = 1, pageSize = 50))
         }
+        val viewModel = TransactionsViewModel(repo)
+        advanceUntilIdle()
+
+        repo.fail = ApiException.Network()
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.offline)
+        assertEquals(listOf(1L, 2L), viewModel.uiState.value.transactions.map { it.id })
+        assertNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `fetch failure without cache surfaces user message`() = runTest(dispatcher) {
+        val repo = FakeTransactionRepository().apply { fail = ApiException.Network() }
         val viewModel = TransactionsViewModel(repo)
         advanceUntilIdle()
 
