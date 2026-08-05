@@ -1,7 +1,6 @@
 """Repository pattern: persistence access for Statement aggregate."""
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.entities import ParseStatus
@@ -22,21 +21,6 @@ class StatementRepository:
         self._db.add(statement)
         self._db.flush()
         return statement
-
-    def get_for_user(self, statement_id: int, user_id: int) -> Statement | None:
-        return self._db.scalar(
-            select(Statement).where(Statement.id == statement_id, Statement.user_id == user_id)
-        )
-
-    def list_for_user(self, user_id: int, limit: int = 50) -> list[Statement]:
-        return list(
-            self._db.scalars(
-                select(Statement)
-                .where(Statement.user_id == user_id)
-                .order_by(Statement.created_at.desc())
-                .limit(limit)
-            )
-        )
 
     def mark_processed(
         self,

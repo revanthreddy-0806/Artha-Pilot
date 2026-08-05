@@ -1,13 +1,10 @@
 """Parser contracts and shared helpers."""
 from abc import ABC, abstractmethod
 from datetime import date, datetime
-import logging
 import re
 from typing import Protocol
 
 from app.domain.entities import ParsedStatement
-
-logger = logging.getLogger(__name__)
 
 _DATE_FORMATS = [
     "%d-%m-%Y",

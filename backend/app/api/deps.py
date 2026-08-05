@@ -1,5 +1,4 @@
 """Shared FastAPI dependencies."""
-import logging
 from typing import Annotated
 
 from fastapi import Depends
@@ -12,8 +11,6 @@ from app.db import get_db
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
-
-logger = logging.getLogger(__name__)
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
