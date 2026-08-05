@@ -6,6 +6,7 @@ import com.arthapilot.app.data.repository.TransactionRepository
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.Transaction
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,11 +20,11 @@ data class TransactionsUiState(
     val transactions: List<Transaction> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
+    val offline: Boolean = false,
     val page: Int = 0,
     val pageSize: Int = 50,
     val total: Int = 0,
     val categoryFilter: String? = null,
-    val typeFilter: String? = null,
     val hasMore: Boolean = false,
 )
 
@@ -38,28 +39,28 @@ class TransactionsViewModel @Inject constructor(
     /** Offline mirror of the last successful fetch. */
     val cachedTransactions: StateFlow<List<Transaction>> =
         transactionRepository.cachedTransactions
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
-        refresh(reset = true)
+        refresh()
     }
 
-    fun refresh() = refresh(reset = true)
+    fun refresh() {
+        if (_uiState.value.isLoading) return
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        load(page = 1, reset = true)
+    }
 
     fun loadMore() {
         val state = _uiState.value
         if (state.isLoading || !state.hasMore) return
-        refresh(reset = false)
+        _uiState.update { it.copy(isLoading = true) }
+        load(page = state.page + 1, reset = false)
     }
 
     fun setCategoryFilter(category: String?) {
         _uiState.update { it.copy(categoryFilter = category) }
-        refresh(reset = true)
-    }
-
-    fun setTypeFilter(type: String?) {
-        _uiState.update { it.copy(typeFilter = type) }
-        refresh(reset = true)
+        refresh()
     }
 
     fun onErrorDismissed() = _uiState.update { it.copy(error = null) }
@@ -68,39 +69,53 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 transactionRepository.updateCategory(id, category)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: ApiException) {
                 _uiState.update { it.copy(error = e.userMessage) }
             }
         }
     }
 
-    private fun refresh(reset: Boolean) {
-        val state = _uiState.value
-        if (state.isLoading) return
+    private fun load(page: Int, reset: Boolean) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val nextPage = if (reset) 1 else state.page + 1
+            val state = _uiState.value
             try {
-                val page = transactionRepository.fetchTransactions(
-                    page = nextPage,
+                val result = transactionRepository.fetchTransactions(
+                    page = page,
                     pageSize = state.pageSize,
                     category = state.categoryFilter,
-                    transactionType = state.typeFilter,
+                    transactionType = null,
                     startDate = null,
                     endDate = null,
                 )
                 _uiState.update {
                     it.copy(
-                        transactions = if (reset) page.items else it.transactions + page.items,
-                        page = page.page,
-                        total = page.total,
-                        hasMore = page.page * page.pageSize < page.total,
+                        transactions = if (reset) result.items else it.transactions + result.items,
+                        page = result.page,
+                        total = result.total,
+                        hasMore = result.page * result.pageSize < result.total,
+                        offline = false,
+                        isLoading = false,
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: ApiException) {
-                _uiState.update { it.copy(error = e.userMessage) }
-            } finally {
-                _uiState.update { it.copy(isLoading = false) }
+                val cached = if (e is ApiException.Network) cachedTransactions.value else emptyList()
+                if (cached.isNotEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            transactions = cached,
+                            hasMore = false,
+                            offline = true,
+                            error = null,
+                            isLoading = false,
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(error = e.userMessage, isLoading = false) }
+                }
             }
         }
     }

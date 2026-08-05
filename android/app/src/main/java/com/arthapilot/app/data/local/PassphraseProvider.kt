@@ -32,7 +32,7 @@ class PassphraseProvider @Inject constructor(
 
     fun blockingGetOrCreate(): ByteArray = runBlocking { getOrCreate() }
 
-    suspend fun getOrCreate(): ByteArray {
+    private suspend fun getOrCreate(): ByteArray {
         val prefs = dataStore.data.first()
         prefs[KEY_ENCRYPTED]?.let { encrypted -> return decrypt(encrypted) }
 

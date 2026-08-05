@@ -9,6 +9,7 @@ import com.arthapilot.app.data.remote.toEntity
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.Transaction
 import com.arthapilot.app.domain.model.TransactionPage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -54,6 +55,8 @@ class TransactionRepositoryImpl @Inject constructor(
     ): TransactionPage {
         val result = try {
             api.getTransactions(page, pageSize, category, transactionType, startDate, endDate)
+        } catch (e: CancellationException) {
+            throw e
         } catch (t: Throwable) {
             throw ApiErrorMapper.map(t)
         }
@@ -64,6 +67,8 @@ class TransactionRepositoryImpl @Inject constructor(
     override suspend fun updateCategory(id: Long, category: String): Transaction {
         val updated = try {
             api.updateCategory(id, CategoryUpdateDto(category))
+        } catch (e: CancellationException) {
+            throw e
         } catch (t: Throwable) {
             throw ApiErrorMapper.map(t)
         }

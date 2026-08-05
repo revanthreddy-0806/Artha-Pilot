@@ -97,7 +97,7 @@ fun UploadStatementScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Upload a PDF bank statement",
+                text = "Upload a bank statement",
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
@@ -115,11 +115,11 @@ fun UploadStatementScreen(
                 Text("Uploading and parsing…")
             } else {
                 OutlinedButton(
-                    onClick = { filePicker.launch(arrayOf("application/pdf")) },
+                    onClick = { filePicker.launch(arrayOf("application/pdf", "text/csv", "text/comma-separated-values")) },
                     enabled = !uiState.isUploading,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(uiState.selectedFileName ?: "Choose PDF file")
+                    Text(uiState.selectedFileName ?: "Choose PDF or CSV file")
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(

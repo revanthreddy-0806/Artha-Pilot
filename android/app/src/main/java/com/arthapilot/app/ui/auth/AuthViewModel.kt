@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.arthapilot.app.data.repository.AuthRepository
 import com.arthapilot.app.domain.model.ApiException
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +36,7 @@ class AuthViewModel @Inject constructor(
 
     val authState: StateFlow<AuthState> = authRepository.tokens
         .map { if (it == null) AuthState.Unauthenticated else AuthState.Authenticated }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, AuthState.Unauthenticated)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AuthState.Unauthenticated)
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -58,15 +59,24 @@ class AuthViewModel @Inject constructor(
         )
     }
 
-    fun logout() = viewModelScope.launch { authRepository.logout() }
+    fun logout() = viewModelScope.launch {
+        try {
+            authRepository.logout()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Best effort: the token store clear is idempotent and can be retried on the next logout.
+        }
+    }
 
     private fun submit(block: suspend () -> Unit) {
-        val state = _uiState.value
-        if (state.isLoading) return
+        if (_uiState.value.isLoading) return
+        _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 block()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: ApiException) {
                 _uiState.update { it.copy(error = e.userMessage) }
             } finally {

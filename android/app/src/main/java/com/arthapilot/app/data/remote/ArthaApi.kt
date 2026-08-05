@@ -27,7 +27,7 @@ interface ArthaApi {
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequestDto): TokenResponseDto
 
-    @POST("auth/refresh")
+    @POST(REFRESH_PATH)
     suspend fun refresh(@Body body: RefreshRequestDto): TokenResponseDto
 
     @GET("auth/me")
@@ -52,4 +52,8 @@ interface ArthaApi {
         @Path("id") id: Long,
         @Body body: CategoryUpdateDto,
     ): TransactionDto
+
+    companion object {
+        const val REFRESH_PATH = "auth/refresh"
+    }
 }

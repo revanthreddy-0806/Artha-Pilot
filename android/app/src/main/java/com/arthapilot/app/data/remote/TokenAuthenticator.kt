@@ -61,7 +61,7 @@ class TokenAuthenticator(
     private fun refreshTokens(refreshToken: String): TokenResponseDto? {
         val payload = gson.toJson(RefreshRequestDto(refreshToken))
         val request = Request.Builder()
-            .url(apiBaseUrl.trimEnd('/') + "/auth/refresh")
+            .url(apiBaseUrl.trimEnd('/') + "/" + ArthaApi.REFRESH_PATH)
             .header("Content-Type", "application/json")
             .header(REFRESH_ATTEMPT_HEADER, "1")
             .post(payload.toRequestBody("application/json".toMediaType()))

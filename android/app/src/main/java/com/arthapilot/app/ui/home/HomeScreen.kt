@@ -58,6 +58,8 @@ private val FILTER_CATEGORIES = listOf(
     "Uncategorized",
 )
 
+private val THOUSANDS_REGEX = Regex("(\\d)(?=(\\d{3})+(?!\\d))")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -121,6 +123,14 @@ fun HomeScreen(
                 }
 
                 else -> {
+                    if (uiState.offline) {
+                        Text(
+                            text = "Offline · showing cached transactions",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxSize(),
@@ -227,7 +237,7 @@ private fun amountText(transaction: Transaction): String {
 private fun formatAmount(amount: Double): String {
     val rounded = String.format(Locale.US, "%.2f", amount)
     val parts = rounded.split(".")
-    return "${parts[0].replace(Regex("(\\d)(?=(\\d{3})+(?!\\d))"), "$1,")}.${parts[1]}"
+    return "${parts[0].replace(THOUSANDS_REGEX, "$1,")}.${parts[1]}"
 }
 
 private val CATEGORY_CHOICES = listOf(

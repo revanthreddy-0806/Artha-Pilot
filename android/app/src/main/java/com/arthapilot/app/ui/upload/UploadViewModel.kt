@@ -1,6 +1,5 @@
 package com.arthapilot.app.ui.upload
 
-import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,19 +7,16 @@ import com.arthapilot.app.data.repository.StatementRepository
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.StatementUploadResult
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
 class UploadViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val statementRepository: StatementRepository,
 ) : ViewModel() {
 
@@ -41,11 +37,11 @@ class UploadViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isUploading = true, error = null) }
             try {
-                val bytes = readAllBytes(currentUri)
                 val fileName = _uiState.value.selectedFileName ?: "statement.pdf"
-                val mime = "application/pdf"
-                val result: StatementUploadResult = statementRepository.upload(fileName, mime, bytes)
+                val result = statementRepository.upload(currentUri, fileName, mimeTypeFor(fileName))
                 _uiState.update { it.copy(success = result) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: ApiException) {
                 _uiState.update { it.copy(error = e.userMessage) }
             } catch (e: Exception) {
@@ -58,8 +54,9 @@ class UploadViewModel @Inject constructor(
 
     fun onErrorDismissed() = _uiState.update { it.copy(error = null) }
 
-    private suspend fun readAllBytes(currentUri: Uri): ByteArray = withContext(Dispatchers.IO) {
-        context.contentResolver.openInputStream(currentUri)?.use { it.readBytes() }
-            ?: throw IllegalStateException("Cannot open file")
+    private fun mimeTypeFor(fileName: String): String = when {
+        fileName.endsWith(".csv", ignoreCase = true) -> "text/csv"
+        fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+        else -> "application/octet-stream"
     }
 }

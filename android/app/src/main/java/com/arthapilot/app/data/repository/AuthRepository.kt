@@ -8,6 +8,7 @@ import com.arthapilot.app.data.remote.dto.RegisterRequestDto
 import com.arthapilot.app.data.remote.toDomain
 import com.arthapilot.app.domain.model.AuthTokens
 import com.arthapilot.app.domain.model.User
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,6 +36,8 @@ class AuthRepositoryImpl @Inject constructor(
             )
             tokenStore.save(response.toDomain())
             return me()
+        } catch (e: CancellationException) {
+            throw e
         } catch (t: Throwable) {
             throw ApiErrorMapper.map(t)
         }
@@ -45,6 +48,8 @@ class AuthRepositoryImpl @Inject constructor(
             val response = api.login(LoginRequestDto(email = email, password = password))
             tokenStore.save(response.toDomain())
             return me()
+        } catch (e: CancellationException) {
+            throw e
         } catch (t: Throwable) {
             throw ApiErrorMapper.map(t)
         }
@@ -53,6 +58,8 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun me(): User {
         try {
             return api.me().toDomain()
+        } catch (e: CancellationException) {
+            throw e
         } catch (t: Throwable) {
             throw ApiErrorMapper.map(t)
         }
