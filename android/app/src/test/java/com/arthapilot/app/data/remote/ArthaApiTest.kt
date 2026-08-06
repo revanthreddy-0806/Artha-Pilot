@@ -131,6 +131,117 @@ class ArthaApiTest {
         }
     }
 
+    @Test
+    fun `categories endpoint parses taxonomy`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"categories":["Rent","Salary"]}"""))
+        val categories = api.getCategories().categories
+        assertEquals(listOf("Rent", "Salary"), categories)
+        assertEquals("/api/v1/categories", server.takeRequest().path)
+    }
+
+    @Test
+    fun `statements endpoint parses history page`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"items":[{"id":3,"filename":"jan.pdf","file_type":"pdf","bank_name":"HDFC","period_start":"2026-01-01","period_end":"2026-01-31","parse_status":"processed","transaction_count":5,"error_message":null,"created_at":"2026-08-01T10:00:00Z"}],"total":1,"page":1,"page_size":50}""",
+            ),
+        )
+        val page = api.getStatements(1, 50)
+        assertEquals(1, page.total)
+        assertEquals("jan.pdf", page.items[0].filename)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/statements", recorded.requestUrl!!.encodedPath)
+        assertTrue(recorded.requestUrl!!.query!!.contains("page=1"))
+    }
+
+    @Test
+    fun `budgets list parses items`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"items":[{"category":"Rent","monthly_limit":20000.0,"spent":15000.0,"percentage":75.0,"overrun":false}],"total":1}""",
+            ),
+        )
+        val budgets = api.getBudgets().items
+        assertEquals(1, budgets.size)
+        assertEquals(75.0, budgets[0].percentage, 0.0)
+    }
+
+    @Test
+    fun `set budget issues PUT with monthly_limit body`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"category":"Rent","monthly_limit":25000.0,"spent":0.0,"percentage":0.0,"overrun":false}""",
+            ),
+        )
+        val budget = api.setBudget("Rent", com.arthapilot.app.data.remote.dto.BudgetUpsertDto(25000.0))
+        assertEquals(25000.0, budget.monthlyLimit, 0.0)
+
+        val recorded = server.takeRequest()
+        assertEquals("PUT", recorded.method)
+        assertEquals("/api/v1/budgets/Rent", recorded.path)
+        assertTrue(recorded.body.readUtf8().contains("\"monthly_limit\":25000.0"))
+    }
+
+    @Test
+    fun `delete budget issues DELETE to budget path`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(204))
+        api.deleteBudget("Rent")
+        val recorded = server.takeRequest()
+        assertEquals("DELETE", recorded.method)
+        assertEquals("/api/v1/budgets/Rent", recorded.path)
+    }
+
+    @Test
+    fun `insights summary parses response`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"month":"2026-07","income":100000.0,"expenses":50000.0,"savings":50000.0,"savings_rate":0.5,"transaction_count":5,"top_categories":[{"category":"Rent","amount":25000.0,"percentage":50.0}]}""",
+            ),
+        )
+        val summary = api.getInsightsSummary("2026-07")
+        assertEquals(0.5, summary.savingsRate!!, 0.0)
+        assertEquals(1, summary.topCategories.size)
+    }
+
+    @Test
+    fun `monthly trends sends months query`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"months":[{"month":"2026-07","income":100.0,"expenses":40.0,"savings":60.0}]}""",
+            ),
+        )
+        val trends = api.getMonthlyTrends(6).months
+        assertEquals(1, trends.size)
+        assertEquals("2026-07", trends[0].month)
+        assertTrue(server.takeRequest().requestUrl!!.query!!.contains("months=6"))
+    }
+
+    @Test
+    fun `recurring endpoint parses detected items`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"items":[{"transaction_id":11,"description":"SBI CAR LOAN EMI","amount":12500.0,"category":"Bills & Recurring","kind":"emi","interval_days":30,"occurrences":3,"confidence":0.75,"first_date":"2026-05-05","last_date":"2026-07-05","next_expected_date":"2026-08-04"}]}""",
+            ),
+        )
+        val items = api.getRecurring().items
+        assertEquals(1, items.size)
+        assertEquals("emi", items[0].kind)
+    }
+
+    @Test
+    fun `risk profile parses score and factors`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"score":82,"band":"Excellent","summary":"Great","factors":[{"name":"Savings rate","value":"60.0%","impact":"positive"}],"income":100000.0,"monthly_expenses":40000.0,"savings_rate":0.6,"emi_load_ratio":0.1,"safe_emi_amount":30000.0,"max_loan_amount":1398000.0,"max_loan_tenure_months":60}""",
+            ),
+        )
+        val profile = api.getRiskProfile()
+        assertEquals(82, profile.score)
+        assertEquals("Excellent", profile.band)
+        assertEquals(1, profile.factors.size)
+    }
+
     private fun tokenResponse() = MockResponse().setResponseCode(200).setBody(
         """{"access_token":"access-1","refresh_token":"refresh-1","token_type":"bearer"}""",
     )
