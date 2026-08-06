@@ -10,11 +10,16 @@ import com.arthapilot.app.data.remote.ArthaApi
 import com.arthapilot.app.data.remote.toDomain
 import com.arthapilot.app.data.remote.toEntity
 import com.arthapilot.app.data.remote.toStatementEntity
+import com.arthapilot.app.data.remote.toStatementInfo
 import com.arthapilot.app.domain.model.ApiException
+import com.arthapilot.app.domain.model.StatementInfo
+import com.arthapilot.app.domain.model.StatementPage
 import com.arthapilot.app.domain.model.StatementUploadResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -28,6 +33,12 @@ interface StatementRepository {
      * encoding all live here so the UI layer stays free of ContentResolver IO.
      */
     suspend fun upload(fileUri: Uri, fileName: String, mimeType: String): StatementUploadResult
+
+    /** Statement history from the API, mirrored into the local cache. */
+    suspend fun fetchStatements(page: Int, pageSize: Int): StatementPage
+
+    /** Locally cached statement history (offline view). */
+    val cachedStatements: Flow<List<StatementInfo>>
 }
 
 @Singleton
@@ -37,6 +48,24 @@ class StatementRepositoryImpl @Inject constructor(
     private val transactionDao: TransactionDao,
     @ApplicationContext private val context: Context,
 ) : StatementRepository {
+
+    override val cachedStatements: Flow<List<StatementInfo>> =
+        statementDao.observeAll().map { rows -> rows.map { it.toStatementInfo() } }
+
+    override suspend fun fetchStatements(page: Int, pageSize: Int): StatementPage {
+        val result = try {
+            api.getStatements(page, pageSize)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw ApiErrorMapper.map(t)
+        }
+        statementDao.upsertAll(result.items.map { it.toStatementEntity() })
+        return StatementPage(
+            items = result.items.map { it.toDomain() },
+            total = result.total,
+        )
+    }
 
     override suspend fun upload(
         fileUri: Uri,

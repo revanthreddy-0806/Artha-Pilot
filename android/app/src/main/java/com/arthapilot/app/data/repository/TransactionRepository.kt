@@ -1,5 +1,7 @@
 package com.arthapilot.app.data.repository
 
+import com.arthapilot.app.data.local.PendingChangeDao
+import com.arthapilot.app.data.local.PendingChangeEntity
 import com.arthapilot.app.data.local.TransactionDao
 import com.arthapilot.app.data.remote.ApiErrorMapper
 import com.arthapilot.app.data.remote.ArthaApi
@@ -33,6 +35,11 @@ interface TransactionRepository {
         endDate: String?,
     ): TransactionPage
 
+    /**
+     * Updates a transaction's category. When the network is unavailable the
+     * change is queued locally (optimistically applied) and synced on the
+     * next successful fetch.
+     */
     suspend fun updateCategory(id: Long, category: String): Transaction
 }
 
@@ -40,6 +47,7 @@ interface TransactionRepository {
 class TransactionRepositoryImpl @Inject constructor(
     private val api: ArthaApi,
     private val transactionDao: TransactionDao,
+    private val pendingChangeDao: PendingChangeDao,
 ) : TransactionRepository {
 
     override val cachedTransactions: Flow<List<Transaction>> =
@@ -53,6 +61,7 @@ class TransactionRepositoryImpl @Inject constructor(
         startDate: String?,
         endDate: String?,
     ): TransactionPage {
+        flushPendingChanges()
         val result = try {
             api.getTransactions(page, pageSize, category, transactionType, startDate, endDate)
         } catch (e: CancellationException) {
@@ -65,14 +74,52 @@ class TransactionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateCategory(id: Long, category: String): Transaction {
-        val updated = try {
-            api.updateCategory(id, CategoryUpdateDto(category))
+        try {
+            val updated = api.updateCategory(id, CategoryUpdateDto(category))
+            pendingChangeDao.deleteForTransaction(id)
+            transactionDao.updateCategory(id, updated.category)
+            return updated.toDomain()
         } catch (e: CancellationException) {
             throw e
+        } catch (e: ApiException.Network) {
+            pendingChangeDao.insert(
+                PendingChangeEntity(
+                    transactionId = id,
+                    newCategory = category,
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+            transactionDao.updateCategory(id, category)
+            return transactionDao.getById(id)?.toDomain()
+                ?: Transaction(
+                    id = id,
+                    statementId = 0,
+                    date = "",
+                    description = "",
+                    amount = 0.0,
+                    transactionType = "debit",
+                    balance = null,
+                    category = category,
+                    confidence = null,
+                    isRecurring = false,
+                )
         } catch (t: Throwable) {
             throw ApiErrorMapper.map(t)
         }
-        transactionDao.updateCategory(id, updated.category)
-        return updated.toDomain()
+    }
+
+    /** Best-effort replay of queued category changes; failures stay queued. */
+    private suspend fun flushPendingChanges() {
+        for (change in pendingChangeDao.getAll()) {
+            try {
+                api.updateCategory(change.transactionId, CategoryUpdateDto(change.newCategory))
+                pendingChangeDao.delete(change.id)
+                transactionDao.updateCategory(change.transactionId, change.newCategory)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Keep the pending change for the next sync attempt.
+            }
+        }
     }
 }
