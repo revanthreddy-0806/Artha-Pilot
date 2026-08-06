@@ -105,4 +105,29 @@ Rationale:
 
 Conditional items for **production** (not blockers for this phase-3 release): real HTTPS release URL, store signing, instrumentation suite, backend prod-compose hardening, shared rate-limit store.
 
+## 11. Final Sign-Off Addendum (2026-08-06)
+
+Independent principal-engineer verification (clean-room clone + fresh Docker/DB + live UAT + full audit) confirmed the release and found **no release-blocking defects**. All verified issues were fixed, re-tested, and are summarized here; final figures supersede those above.
+
+### 11.1 Final verified numbers
+| Gate | Result |
+|---|---|
+| Backend suite | ✅ **149/149** (142 baseline + 7 sign-off tests), 0 failed, coverage **94%**, `compileall` clean |
+| Android unit tests | ✅ **79/79** (12 suites; +4 `TokenAuthenticatorTest`) |
+| Android build gates | ✅ `assembleDebug` · `assembleRelease` (R8) · `lintDebug` 0 errors / 5 benign warnings |
+| Live UAT (fresh Dockerized stack, `uat_e2e.ps1`) | ✅ **47/47** — includes 401/expired/forged-JWT flows, refresh rotation + reuse rejection, client-side logout (no server endpoint, 404), CSV 7 + PDF 5, 413 >10 MB, filters + 422, correction persistence, cross-user isolation, budgets/insights/risk, DB persistence across `docker compose restart backend`, register rate limit (429 at 11+) |
+
+### 11.2 Verified fixes applied
+- **Backend**: validation errors no longer log/echo plaintext request bodies (`errors.py`); refresh-rotation concurrency race → 401 instead of 500 (`auth_service.py`); budget upsert race converges instead of 500 (`budget_repository.py`); `DEBUG` defaults to `False`.
+- **Android**: **logout wipes the Room cache before clearing tokens** — fixes both the doc/code mismatch (Phase 2 claimed Room wipe + `/auth/logout`; there is no server logout endpoint) and real tenant-isolation leakage (next account could previously render the prior account's cached data offline and replay its pending corrections); `TokenAuthenticator` clears tokens only on 401 refresh failures (5xx/429 no longer log the user out); passphrase first-run generation is single-flight (Mutex) so the DB is always opened with the persisted passphrase; cleartext network config moved to `src/debug` (release bans cleartext); statement `createdAt` real timestamp; `unauthorized` 401s map to the proper client error type.
+
+### 11.3 Documented limitations (not fixed at sign-off — see table with rationale in ENGINEERING_REPORT §40.5)
+- JWTs (incl. 7-day refresh) at rest plaintext in DataStore → token-at-rest encryption is the v4 backlog priority (Keystore already covers the DB).
+- Release `API_BASE_URL` is a placeholder — supply the real endpoint when packaging (release-blocking checklist item).
+- Prod-compose hardening: set `ENVIRONMENT=production` + strong `JWT_SECRET_KEY` in production so the secret guard fires; CORS wildcard is the dev default.
+- Async-upload CPU work on the event loop, `float` money, extension-only upload sniffing, per-process rate limiter, XFF trust, refresh-family revocation — all documented hardening backlog.
+
+### 11.4 Decision
+**✅ GO (GO WITH DOCUMENTED BACKLOG).** Zero verified defects remain in the tagged code; every non-fixed item is an explicitly documented limitation or a production-deployment configuration. `main` remains untouched; tag `v3.0.0-phase3` will be re-cut from the final verified commit on `develop`.
+
 *Approval from the client remains required before any production promotion.*

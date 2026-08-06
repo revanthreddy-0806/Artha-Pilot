@@ -21,7 +21,7 @@
 | Offline cache | Last successful fetch mirrored into Room; on network failure the Home screen renders the cached snapshot with an offline banner | ✅ |
 | Encrypted storage | Room DB encrypted with SQLCipher 4.17.0; 32-byte random passphrase sealed (AES/GCM) in Android Keystore | ✅ |
 | Backup protection | `allowBackup=false`, `fullBackupContent=false`, `dataExtractionRules` exclude all data | ✅ |
-| Session management | Logout clears DataStore tokens + Room data (server token invalidated via `/auth/logout`) | ✅ |
+| Session management | Logout clears DataStore tokens + wipes the Room cache (client-side only; there is no `/auth/logout` endpoint — refresh tokens remain valid until natural expiry) | ✅ |
 
 ## 2. Screens Completed
 
@@ -41,7 +41,7 @@ All screens: Material 3, edge-to-edge, reactive `StateFlow<UiState>` driven, `co
 | `/auth/login` | POST | AuthViewModel → AuthRepository |
 | `/auth/register` | POST | AuthViewModel → AuthRepository |
 | `/auth/me` | GET | Session validation |
-| `/auth/logout` | POST | Logout flow |
+| `/auth/refresh` | POST | TokenAuthenticator (refresh rotation) |
 | `/statements/upload` | POST (multipart) | UploadViewModel → StatementRepository |
 | `/transactions` | GET | TransactionRepository (offset pagination + filters) |
 | `/transactions/{id}/category` | PATCH | TransactionRepository (category correction) |

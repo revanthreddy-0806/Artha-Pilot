@@ -20,6 +20,12 @@ All notable changes to Artha Pilot are documented here, per release.
 - Release hardening: versionCode 3 / versionName 3.0.0, per-build API URLs, R8 minify + resource shrinking.
 - 38 new tests → suite at **75 passed**; lint 0 errors.
 
+### Sign-off hardening (2026-08-06, final verification)
+- Backend: validation errors no longer log/echo plaintext request bodies; refresh-rotation and budget-upsert concurrency races return 401/409-ish responses instead of 500s; `DEBUG` defaults to `False`. +7 tests → **149 passed**, coverage **94%**.
+- Android: **logout now wipes the Room cache** before clearing tokens (fixes tenant-isolation leak — prior account's cached data/pending corrections are no longer visible or replayable by the next account); refresh failures no longer force-log-out on transient 5xx/429 (only 401 clears the session); first-run passphrase generation made single-flight; cleartext network config restricted to debug builds; statement `createdAt` is a real timestamp; `unauthorized` 401s map to the correct client error. +4 tests → **79 passed** (12 suites).
+- Live UAT against a fresh Dockerized stack: **47/47** checks green (auth/refresh/expiry/forgery flows, uploads incl. 413 >10 MB, filters, correction persistence, cross-user isolation, budgets/insights/risk, DB persistence across container restart, rate limiting 429 at 11+).
+- Clean-room verification: fresh clone → fresh venv → fresh Docker volume → migrations auto-applied at 0003 → all gates green; `main` untouched.
+
 ## [v2.0.0-phase2] — 2026-08-05
 
 ### Android

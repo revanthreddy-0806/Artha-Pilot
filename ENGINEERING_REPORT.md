@@ -523,7 +523,8 @@ New error codes: `invalid_month`, `invalid_category`, `budget_not_found`, `rate_
 - New unit suites: `test_recurring_detector` (11), `test_risk_service` (7), `test_rate_limit` (7).
 - New integration suites: `test_insights_api` (7), `test_budgets_api` (7), `test_meta_api` (3).
 - Extended: `test_statements_api` (+3 pagination tests).
-- **Full suite: 142 passed, 0 failed** in ~65 s; 1 benign sklearn deprecation warning; `compileall` clean.
+- **Full suite: 149 passed, 0 failed** in ~36 s; only third-party deprecation warnings (reportlab `ast.NameConstant`, scikit-learn `L-BFGS-B`; count varies 1–2 by execution order), none in app code; `compileall` clean.
+- Coverage: **94%** overall (TOTAL 1780 statements, 113 missed) — measured with `pytest --cov=app`. Includes the 7 sign-off tests added during final verification (validation sanitization ×4, refresh/budget race recovery ×3).
 - Key verification cases: EMI hint → kind `emi`; large non-Rent 30-day debit → `emi`; Rent EMIs stay `recurring`; credits never flagged; next-expected rolls past today; risk bands (Poor < 40 < Fair < 60 < Good < 80 ≤ Excellent); safe-EMI = 30% income − existing EMI; loan principal formula; limiter per-client isolation + window expiry + 429 contract; budgets upsert/overrun/404/422; month validation `^\d{4}-\d{2}$`.
 
 ## 36. Android Phase 3 — Features
@@ -580,3 +581,59 @@ New error codes: `invalid_month`, `invalid_category`, `budget_not_found`, `rate_
 - PDF text-extraction limitation carries over (scanned/image PDFs unsupported).
 - Release `API_BASE_URL` is a placeholder HTTPS URL — must be set to the real production endpoint before shipping.
 - Docker images apply `alembic upgrade head` at container start (added this phase) — previously migrations had to be applied manually.
+
+## 40. Final Release Sign-Off (2026-08-06)
+
+Independent principal-engineer verification of `v3.0.0-phase3` was performed with a **clean-room clone** plus full re-audit (architecture, security, API contract, live UAT). Figures reported in earlier sections are superseded by the ones below.
+
+### 40.1 Clean-room verification
+- **Git**: `develop` @ `5669e54` (22 conventional commits above `main@e1afe5d`); `main` never touched; tags `v2.0.0-phase2`/`v3.0.0-phase3` pushed; tree clean.
+- **Backend**: fresh `clone → venv → pip install`; `compileall` clean; 142/142 baseline; coverage 94% (1765/113).
+- **Docker**: `down -v` → `up --build` → fresh volume; migrations auto-applied at container start (`alembic upgrade head` → 0003); `GET /health` = `{"status":"ok","database":"connected"}`; `ENVIRONMENT=development`; JWT default secret confirmed (see 40.5).
+- **Android**: fresh clone needed only `local.properties` (git-ignored by design); `testDebugUnitTest --rerun-tasks` 75/75, `assembleDebug` / `assembleRelease` (R8) / `lintDebug` (0 errors, 5 benign warnings) all green.
+
+### 40.2 Live UAT — 47/47 checks
+Full e2e against the Dockerized stack (`uat_e2e.ps1`): register/401-flows/refresh rotation + reuse rejection/expired + forged JWTs (crafted with the container's actual secret)/no `/auth/logout` (404 — logout is client-side), CSV 7 + PDF 5 uploads, 413 at >10 MB (`file_too_large`), total 12, pagination, `transaction_type`/category/date filters + `bogus` → 422, correction persist, cross-user isolation 404, insights/budgets/risk contracts, DB persistence across `docker compose restart backend`, and register rate limit (no 429 in first 10, 429 at 11+).
+
+### 40.3 Verified fixes applied (this sign-off)
+Backend:
+- **Sanitize validation-error logging/responses** — `errors.py` no longer logs/echoes request `input` (plaintext passwords never hit logs or responses); `_sanitize_validation_errors` strips `input` (was already used for the response; now also applied to the log line).
+- **Refresh-rotation race → 401** — two concurrent refreshes of the same token no longer 500s; an `IntegrityError` on the jti insert is caught and mapped to `invalid_refresh_token` (`auth_service.py`).
+- **Budget upsert race converged** — concurrent `PUT /budgets/{category}` no longer 500s; the loser rolls back and returns the winning row (`budget_repository.upsert`).
+- `DEBUG` now defaults to `False` (`config.py`).
+
+Android:
+- **Logout now wipes Room** — `AuthRepositoryImpl.logout()` clears all cached tables (Room `clearAllTables`) before clearing tokens. This makes the code match the Phase 2 documented contract and — critically — removes tenant-isolation leakage (previously the next account on the same device could render the previous account's cached transactions/statements offline, and pending category corrections could be replayed under the new account's token).
+- **Refresh failure no longer force-logs-out** — `TokenAuthenticator` clears tokens only on a 401 refresh response; transient 5xx/429 leave the session intact (added 4-test `TokenAuthenticatorTest`).
+- **Passphrase single-flight** — first-run passphrase generation is now serialized with a `Mutex` (previously the app pre-warm thread and Hilt provisioning could each generate distinct passphrases, and last-write-wins could break DB open on the next launch).
+- **Cleartext restricted to debug builds** — `network_security_config` moved to `src/debug` + debug manifest overlay; release has no cleartext allowance.
+- **Statement `createdAt`** — newly uploaded statements no longer sort last (empty timestamp now a real ISO timestamp).
+- **Error mapping** — backend `unauthorized` 401 codes now map to `ApiException.Unauthorized` (was generic `Server`).
+- Test env: `unitTests.isReturnDefaultValues = true` (unblocks OkHttp in JVM tests); 4 new authenticator tests.
+
+### 40.4 Audit results (confirmed clean)
+- API client/backend contract: **16/16 endpoints match** (paths, methods, bodies, query params, snake_case field names, page envelope, ISO dates, category taxonomy, error envelope); 1 minor mapping gap (fixed above).
+- Architecture/layering, no circular imports, no N+1, parameterized SQL everywhere, no `!!`/`require()` crashes, no TODO/FIXME, no secrets/hardcoded keys, backup fully disabled, R8 keep rules claim DTOs only, no custom TLS trust, debug-only HTTP logging.
+- Crypto: Keystore AES/GCM (12-byte random IV, 128-bit tag) sealing a 32-byte SQLCipher passphrase — correct primitives.
+
+### 40.5 Known limitations documented, not fixed at sign-off (with rationale)
+| # | Item | Location | Rationale |
+|---|---|---|---|
+| 1 | JWTs stored **plaintext** in DataStore (7-day refresh token at rest) | `TokenStore.kt` | Encryption layer (Keystore) already covers the DB; a token-at-rest crypto refactor carries data-loss risk if rushed — scheduled as the first item of v4. Backlog. |
+| 2 | Release `API_BASE_URL` is a placeholder HTTPS URL | `build.gradle.kts:30` | Real endpoint supplied at packaging time (out of repo scope). Release-blocking checklist item, not a code defect. |
+| 3 | Prod-compose defaults: `JWT_SECRET_KEY` default (`change-me-in-production`), `ENVIRONMENT` not set to `production` (so the prod secret guard does not fire), CORS wildcard | `config.py`, `docker-compose.yml` | Dev-oriented compose; **must set `ENVIRONMENT=production` + strong `JWT_SECRET_KEY` in prod**. Guard verified working in prod mode. |
+| 4 | Upload runs CPU/IO work on the event loop (`async def upload_statement`) | `statements.py` | Single-worker today; threadpool/executor refactor noted for hardening. No correctness/stability impact at current scale. |
+| 5 | Money stored as IEEE-754 `float` | models/schemas | `Decimal/Numeric` migration is a data-layer refactor, deferred. |
+| 6 | Extension-only upload validation (no magic-byte sniffing) | `statement_service.py` | Limited exposure (bytes parsed then discarded, never stored/served); sniffing on backlog. |
+| 7 | Refresh replay revokes only the replayed token (family stays valid) | `auth_service.py` | Improvement (family revocation) noted for hardening. |
+| 8 | Rate limiter trusts `X-Forwarded-For`, per-process | `rate_limit.py` | Deploy behind a stripping trusted proxy; Redis store for multi-worker. |
+| 9 | Full history reloaded + recurring scan on every upload | `statement_service.py` | O(n·buckets) acceptable at current scale; cap noted. |
+| 10 | Concurrent 401 bursts: refresh-in-flight drops requests (spurious 401s) | `TokenAuthenticator` | Waiting/queueing refinement noted; no incorrect data. |
+| 11 | `Exception` label: `ApiErrorMapper` maps non-HTTP failures to `Network` | `ApiErrorMapper` | Cosmetic message; genuine transport failures dominate. |
+| 12 | No instrumentation tests (Room/SQLCipher/Compose UI/real auth path) | — | Emulator run recommended before store release. |
+
+### 40.6 Final gate numbers (post-fix, local repo)
+- Backend: `pytest -q --cov=app` → **149 passed, 0 failed, coverage 94%**.
+- Android: `testDebugUnitTest` → **79/79** (12 suites); `assembleDebug` ✅; `assembleRelease` (R8) ✅; `lintDebug` → **0 errors, 5 warnings** (4 version notices, 1 `v26` false positive).
+- Live UAT: **47/47** green against a fresh Dockerized stack.
+- Release rule: fixes verified → committed → pushed to `develop` → tag `v3.0.0-phase3` re-cut from the verified commit → fresh clean-room re-verification of the tagged commit.
