@@ -1,7 +1,7 @@
 """Statement upload endpoints."""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -9,12 +9,29 @@ from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db import get_db
 from app.models.user import User
-from app.schemas.statement import StatementUploadResponse
+from app.repositories.statement_repository import StatementRepository
+from app.schemas.statement import StatementListResponse, StatementOut, StatementUploadResponse
 from app.services.statement_service import StatementService
 
 router = APIRouter(prefix="/statements", tags=["statements"])
 
 _CHUNK_SIZE = 1024 * 1024
+
+
+@router.get("", response_model=StatementListResponse)
+def list_statements(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+) -> StatementListResponse:
+    items, total = StatementRepository(db).list_for_user(current_user.id, page=page, page_size=page_size)
+    return StatementListResponse(
+        items=[StatementOut.model_validate(s) for s in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 async def _read_upload_limited(request: Request, file: UploadFile, max_bytes: int) -> bytes:

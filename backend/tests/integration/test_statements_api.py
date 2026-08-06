@@ -127,3 +127,39 @@ def test_service_rejects_oversize_content(client, db_session, monkeypatch):
         StatementService(db_session).ingest(user.id, "big.csv", b"x" * (2 * 1024 * 1024))
     assert exc_info.value.status_code == 413
     assert exc_info.value.error_code == "file_too_large"
+
+
+def test_list_statements_paginated(client, auth_headers, sample_csv_bytes, sample_pdf_bytes):
+    client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("a.csv", sample_csv_bytes, "text/csv")},
+    )
+    client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("b.csv", sample_csv_bytes, "text/csv")},
+    )
+    resp = client.get("/api/v1/statements", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert len(body["items"]) == 2
+    assert body["items"][0]["filename"] == "b.csv"
+    assert body["items"][0]["parse_status"] == "processed"
+    assert body["items"][0]["transaction_count"] == 7
+
+    page = client.get("/api/v1/statements?page=1&page_size=1", headers=auth_headers).json()
+    assert page["total"] == 2
+    assert len(page["items"]) == 1
+
+
+def test_list_statements_empty(client, auth_headers):
+    resp = client.get("/api/v1/statements", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 0
+
+
+def test_list_statements_requires_auth(client):
+    resp = client.get("/api/v1/statements")
+    assert resp.status_code == 401

@@ -1,6 +1,7 @@
 """Repository pattern: persistence access for Statement aggregate."""
 from datetime import date
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.domain.entities import ParseStatus
@@ -10,6 +11,24 @@ from app.models.statement import Statement
 class StatementRepository:
     def __init__(self, db: Session) -> None:
         self._db = db
+
+    def list_for_user(
+        self,
+        user_id: int,
+        *,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[Statement], int]:
+        base = select(Statement).where(Statement.user_id == user_id)
+        total = self._db.scalar(select(func.count()).select_from(Statement).where(Statement.user_id == user_id)) or 0
+        rows = list(
+            self._db.scalars(
+                base.order_by(Statement.created_at.desc(), Statement.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return rows, total
 
     def create(
         self,
