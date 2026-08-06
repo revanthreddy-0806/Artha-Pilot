@@ -70,3 +70,34 @@ class TransactionRepository:
         self._db.commit()
         self._db.refresh(transaction)
         return transaction
+
+    def all_for_user(
+        self,
+        user_id: int,
+        *,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[Transaction]:
+        query = select(Transaction).where(Transaction.user_id == user_id)
+        if start_date:
+            query = query.where(Transaction.date >= start_date)
+        if end_date:
+            query = query.where(Transaction.date <= end_date)
+        return list(self._db.scalars(query.order_by(Transaction.date.asc(), Transaction.id.asc())))
+
+    def set_recurring_flags(self, user_id: int, recurring_ids: set[int]) -> int:
+        """Toggle is_recurring on the user's transactions to match recurring_ids.
+
+        Only rows whose flag actually changes are updated; returns the number
+        of updated rows.
+        """
+        rows = self._db.scalars(select(Transaction).where(Transaction.user_id == user_id))
+        updated = 0
+        for row in rows:
+            should_be = row.id in recurring_ids
+            if row.is_recurring != should_be:
+                row.is_recurring = should_be
+                updated += 1
+        if updated:
+            self._db.commit()
+        return updated

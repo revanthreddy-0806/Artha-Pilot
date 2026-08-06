@@ -13,6 +13,7 @@ from app.models.transaction import Transaction
 from app.parsers import parse_statement
 from app.repositories.statement_repository import StatementRepository
 from app.repositories.transaction_repository import TransactionRepository
+from app.services.recurring_detector import TransactionRef, detect_recurring, mark_recurring_transaction_ids
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,21 @@ class StatementService:
             transaction_count=len(rows),
         )
         self._transactions.bulk_create(rows)
+        self._refresh_recurring_flags(statement.user_id)
         return statement
+
+    def _refresh_recurring_flags(self, user_id: int) -> None:
+        """Recompute is_recurring across the user's history after an ingest."""
+        txns = self._transactions.all_for_user(user_id)
+        refs = [
+            TransactionRef(id=t.id, date=t.date, amount=t.amount, description=t.description, category=t.category)
+            for t in txns
+        ]
+        groups = detect_recurring(refs)
+        recurring_ids = mark_recurring_transaction_ids(groups)
+        changed = self._transactions.set_recurring_flags(user_id, recurring_ids)
+        if changed:
+            logger.info("Updated is_recurring on %d transactions for user %s", changed, user_id)
 
 
 def _sanitize_filename(filename: str) -> str:
