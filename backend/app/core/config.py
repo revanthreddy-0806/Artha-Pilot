@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Uploads
     MAX_UPLOAD_MB: int = 10
 
+    # Rate limiting (requests per minute per client, per endpoint group)
+    RATE_LIMIT_REGISTER_PER_MINUTE: int = 10
+    RATE_LIMIT_LOGIN_PER_MINUTE: int = 60
+    RATE_LIMIT_REFRESH_PER_MINUTE: int = 60
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() == "production"
