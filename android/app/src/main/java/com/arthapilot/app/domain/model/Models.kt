@@ -131,6 +131,21 @@ data class RiskProfile(
     val safeEmiAmount: Double,
     val maxLoanAmount: Double?,
     val maxLoanTenureMonths: Int,
+    val toleranceScore: Int? = null,
+    val toleranceBand: String? = null,
+    val behaviorScore: Int = 0,
+    val questionnaireCompleted: Boolean = false,
+)
+
+data class RiskQuestionOption(
+    val id: String,
+    val label: String,
+)
+
+data class RiskQuestion(
+    val id: String,
+    val text: String,
+    val options: List<RiskQuestionOption>,
 )
 
 data class Alert(

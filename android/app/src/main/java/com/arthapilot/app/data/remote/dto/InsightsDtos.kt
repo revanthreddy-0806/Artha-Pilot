@@ -118,4 +118,33 @@ data class RiskProfileDto(
     @SerializedName("safe_emi_amount") val safeEmiAmount: Double,
     @SerializedName("max_loan_amount") val maxLoanAmount: Double?,
     @SerializedName("max_loan_tenure_months") val maxLoanTenureMonths: Int,
+    @SerializedName("tolerance_score") val toleranceScore: Int?,
+    @SerializedName("tolerance_band") val toleranceBand: String?,
+    @SerializedName("behavior_score") val behaviorScore: Int?,
+    @SerializedName("questionnaire_completed") val questionnaireCompleted: Boolean?,
+)
+
+data class RiskQuestionOptionDto(
+    val id: String,
+    val label: String,
+)
+
+data class RiskQuestionDto(
+    val id: String,
+    val text: String,
+    val options: List<RiskQuestionOptionDto>,
+)
+
+data class RiskQuestionListDto(
+    val questions: List<RiskQuestionDto>,
+)
+
+data class RiskQuestionnaireSubmitDto(
+    val answers: Map<String, String>,
+)
+
+data class RiskQuestionnaireResultDto(
+    @SerializedName("tolerance_score") val toleranceScore: Int,
+    @SerializedName("tolerance_band") val toleranceBand: String,
+    val assessment: RiskProfileDto,
 )

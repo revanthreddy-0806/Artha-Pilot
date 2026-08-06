@@ -10,6 +10,7 @@ import com.arthapilot.app.data.remote.dto.MonthTrendDto
 import com.arthapilot.app.data.remote.dto.RecurringItemDto
 import com.arthapilot.app.data.remote.dto.RiskFactorDto
 import com.arthapilot.app.data.remote.dto.RiskProfileDto
+import com.arthapilot.app.data.remote.dto.RiskQuestionDto
 import com.arthapilot.app.data.remote.dto.StatementItemDto
 import com.arthapilot.app.data.remote.dto.StatementUploadResponseDto
 import com.arthapilot.app.data.remote.dto.TokenResponseDto
@@ -25,6 +26,8 @@ import com.arthapilot.app.domain.model.MonthTrend
 import com.arthapilot.app.domain.model.RecurringItem
 import com.arthapilot.app.domain.model.RiskFactor
 import com.arthapilot.app.domain.model.RiskProfile
+import com.arthapilot.app.domain.model.RiskQuestion
+import com.arthapilot.app.domain.model.RiskQuestionOption
 import com.arthapilot.app.domain.model.StatementInfo
 import com.arthapilot.app.domain.model.StatementUploadResult
 import com.arthapilot.app.domain.model.Transaction
@@ -220,4 +223,14 @@ fun RiskProfileDto.toDomain() = RiskProfile(
     safeEmiAmount = safeEmiAmount,
     maxLoanAmount = maxLoanAmount,
     maxLoanTenureMonths = maxLoanTenureMonths,
+    toleranceScore = toleranceScore,
+    toleranceBand = toleranceBand,
+    behaviorScore = behaviorScore ?: 0,
+    questionnaireCompleted = questionnaireCompleted == true,
+)
+
+fun RiskQuestionDto.toDomain() = RiskQuestion(
+    id = id,
+    text = text,
+    options = options.map { RiskQuestionOption(id = it.id, label = it.label) },
 )

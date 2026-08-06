@@ -13,6 +13,9 @@ import com.arthapilot.app.data.remote.dto.RecurringListDto
 import com.arthapilot.app.data.remote.dto.RefreshRequestDto
 import com.arthapilot.app.data.remote.dto.RegisterRequestDto
 import com.arthapilot.app.data.remote.dto.RiskProfileDto
+import com.arthapilot.app.data.remote.dto.RiskQuestionListDto
+import com.arthapilot.app.data.remote.dto.RiskQuestionnaireResultDto
+import com.arthapilot.app.data.remote.dto.RiskQuestionnaireSubmitDto
 import com.arthapilot.app.data.remote.dto.StatementListDto
 import com.arthapilot.app.data.remote.dto.StatementUploadResponseDto
 import com.arthapilot.app.data.remote.dto.TokenResponseDto
@@ -98,7 +101,13 @@ interface ArthaApi {
     @GET("insights/recurring")
     suspend fun getRecurring(): RecurringListDto
 
-    @GET("insights/risk-profile")
+    @GET("risk/questions")
+    suspend fun getRiskQuestions(): RiskQuestionListDto
+
+    @PUT("risk/questionnaire")
+    suspend fun submitRiskQuestionnaire(@Body body: RiskQuestionnaireSubmitDto): RiskQuestionnaireResultDto
+
+    @GET("risk/profile")
     suspend fun getRiskProfile(): RiskProfileDto
 
     companion object {

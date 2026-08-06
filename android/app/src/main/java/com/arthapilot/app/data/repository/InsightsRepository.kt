@@ -2,6 +2,7 @@ package com.arthapilot.app.data.repository
 
 import com.arthapilot.app.data.remote.ApiErrorMapper
 import com.arthapilot.app.data.remote.ArthaApi
+import com.arthapilot.app.data.remote.dto.RiskQuestionnaireSubmitDto
 import com.arthapilot.app.data.remote.toDomain
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.CategoryBreakdownItem
@@ -9,6 +10,7 @@ import com.arthapilot.app.domain.model.InsightsSummary
 import com.arthapilot.app.domain.model.MonthTrend
 import com.arthapilot.app.domain.model.RecurringItem
 import com.arthapilot.app.domain.model.RiskProfile
+import com.arthapilot.app.domain.model.RiskQuestion
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,6 +22,8 @@ interface InsightsRepository {
     suspend fun fetchCategoryBreakdown(month: String?): List<CategoryBreakdownItem>
     suspend fun fetchRecurring(): List<RecurringItem>
     suspend fun fetchRiskProfile(): RiskProfile
+    suspend fun fetchRiskQuestions(): List<RiskQuestion>
+    suspend fun submitRiskQuestionnaire(answers: Map<String, String>): RiskProfile
 }
 
 @Singleton
@@ -49,6 +53,14 @@ class InsightsRepositoryImpl @Inject constructor(
 
     override suspend fun fetchRiskProfile(): RiskProfile = mapNetwork {
         api.getRiskProfile().toDomain()
+    }
+
+    override suspend fun fetchRiskQuestions(): List<RiskQuestion> = mapNetwork {
+        api.getRiskQuestions().questions.map { it.toDomain() }
+    }
+
+    override suspend fun submitRiskQuestionnaire(answers: Map<String, String>): RiskProfile = mapNetwork {
+        api.submitRiskQuestionnaire(RiskQuestionnaireSubmitDto(answers = answers)).assessment.toDomain()
     }
 
     private suspend fun <T> mapNetwork(block: suspend () -> T): T = try {

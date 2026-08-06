@@ -10,6 +10,8 @@ import com.arthapilot.app.data.remote.dto.MonthTrendDto
 import com.arthapilot.app.data.remote.dto.RecurringItemDto
 import com.arthapilot.app.data.remote.dto.RiskFactorDto
 import com.arthapilot.app.data.remote.dto.RiskProfileDto
+import com.arthapilot.app.data.remote.dto.RiskQuestionDto
+import com.arthapilot.app.data.remote.dto.RiskQuestionOptionDto
 import com.arthapilot.app.data.remote.dto.RegisterRequestDto
 import com.arthapilot.app.data.remote.dto.StatementItemDto
 import com.arthapilot.app.data.remote.dto.StatementUploadResponseDto
@@ -18,6 +20,8 @@ import com.arthapilot.app.data.remote.dto.TransactionDto
 import com.arthapilot.app.data.remote.dto.TransactionPageDto
 import com.arthapilot.app.data.remote.dto.UserDto
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MappersTest {
@@ -205,7 +209,7 @@ class MappersTest {
     fun `risk profile dto maps to domain`() {
         val dto = RiskProfileDto(
             score = 82,
-            band = "Excellent",
+            band = "Aggressive",
             summary = "Looks great",
             factors = listOf(RiskFactorDto("Savings rate", "60.0%", "positive")),
             income = 100000.0,
@@ -215,12 +219,61 @@ class MappersTest {
             safeEmiAmount = 30000.0,
             maxLoanAmount = 1398000.0,
             maxLoanTenureMonths = 60,
+            toleranceScore = 90,
+            toleranceBand = "Aggressive",
+            behaviorScore = 75,
+            questionnaireCompleted = true,
         )
         val profile = dto.toDomain()
         assertEquals(82, profile.score)
-        assertEquals("Excellent", profile.band)
+        assertEquals("Aggressive", profile.band)
         assertEquals(1, profile.factors.size)
         assertEquals(1398000.0, profile.maxLoanAmount!!, 0.0)
+        assertEquals(90, profile.toleranceScore)
+        assertEquals("Aggressive", profile.toleranceBand)
+        assertEquals(75, profile.behaviorScore)
+        assertTrue(profile.questionnaireCompleted)
+    }
+
+    @Test
+    fun `risk profile dto maps legacy behaviour-only payload`() {
+        val dto = RiskProfileDto(
+            score = 55,
+            band = "Moderate",
+            summary = "Behaviour only",
+            factors = emptyList(),
+            income = null,
+            monthlyExpenses = 40000.0,
+            savingsRate = 0.2,
+            emiLoadRatio = null,
+            safeEmiAmount = 10000.0,
+            maxLoanAmount = null,
+            maxLoanTenureMonths = 60,
+            toleranceScore = null,
+            toleranceBand = null,
+            behaviorScore = 55,
+            questionnaireCompleted = null,
+        )
+        val profile = dto.toDomain()
+        assertNull(profile.toleranceScore)
+        assertEquals(55, profile.behaviorScore)
+        assertEquals(false, profile.questionnaireCompleted)
+    }
+
+    @Test
+    fun `risk question dto maps to domain`() {
+        val dto = RiskQuestionDto(
+            id = "horizon",
+            text = "How soon do you need the money?",
+            options = listOf(
+                RiskQuestionOptionDto(id = "under-1y", label = "Within 1 year"),
+                RiskQuestionOptionDto(id = "7y-plus", label = "Beyond 7 years"),
+            ),
+        )
+        val question = dto.toDomain()
+        assertEquals("horizon", question.id)
+        assertEquals(2, question.options.size)
+        assertEquals("Within 1 year", question.options[0].label)
     }
 
     private fun transactionDto(id: Long) = TransactionDto(

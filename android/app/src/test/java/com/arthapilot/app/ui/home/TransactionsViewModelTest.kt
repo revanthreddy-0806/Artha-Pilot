@@ -293,6 +293,12 @@ class TransactionsViewModelTest {
 
         override suspend fun fetchRiskProfile(): RiskProfile =
             throw UnsupportedOperationException()
+
+        override suspend fun fetchRiskQuestions(): List<com.arthapilot.app.domain.model.RiskQuestion> =
+            throw UnsupportedOperationException()
+
+        override suspend fun submitRiskQuestionnaire(answers: Map<String, String>): RiskProfile =
+            throw UnsupportedOperationException()
     }
 
     private class FakeBudgetRepository(

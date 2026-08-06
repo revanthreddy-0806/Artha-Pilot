@@ -3,6 +3,7 @@ package com.arthapilot.app.data.remote
 import com.arthapilot.app.data.remote.dto.LoginRequestDto
 import com.arthapilot.app.data.remote.dto.CategoryUpdateDto
 import com.arthapilot.app.data.remote.dto.RegisterRequestDto
+import com.arthapilot.app.data.remote.dto.RiskQuestionnaireSubmitDto
 import com.arthapilot.app.domain.model.ApiException
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
@@ -230,16 +231,57 @@ class ArthaApiTest {
     }
 
     @Test
-    fun `risk profile parses score and factors`() = runBlocking {
+    fun `risk profile parses score and tolerance fields`() = runBlocking {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
-                """{"score":82,"band":"Excellent","summary":"Great","factors":[{"name":"Savings rate","value":"60.0%","impact":"positive"}],"income":100000.0,"monthly_expenses":40000.0,"savings_rate":0.6,"emi_load_ratio":0.1,"safe_emi_amount":30000.0,"max_loan_amount":1398000.0,"max_loan_tenure_months":60}""",
+                """{"score":70,"band":"Aggressive","summary":"Good","factors":[{"name":"Risk questionnaire","value":"90/100 (Aggressive)","impact":"positive"}],"income":100000.0,"monthly_expenses":40000.0,"savings_rate":0.6,"emi_load_ratio":0.1,"safe_emi_amount":30000.0,"max_loan_amount":1398000.0,"max_loan_tenure_months":60,"tolerance_score":90,"tolerance_band":"Aggressive","behavior_score":50,"questionnaire_completed":true}""",
             ),
         )
         val profile = api.getRiskProfile()
-        assertEquals(82, profile.score)
-        assertEquals("Excellent", profile.band)
+        assertEquals(70, profile.score)
+        assertEquals("Aggressive", profile.band)
         assertEquals(1, profile.factors.size)
+        assertEquals(90, profile.toleranceScore)
+        assertEquals("Aggressive", profile.toleranceBand)
+        assertEquals(50, profile.behaviorScore)
+        assertEquals(true, profile.questionnaireCompleted)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/risk/profile", recorded.path)
+    }
+
+    @Test
+    fun `risk questions parse question set`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"questions":[{"id":"horizon","text":"How soon?","options":[{"id":"under-1y","label":"Within 1 year"},{"id":"7y-plus","label":"Beyond 7 years"}]}]}""",
+            ),
+        )
+        val questions = api.getRiskQuestions().questions
+        assertEquals(1, questions.size)
+        assertEquals("horizon", questions[0].id)
+        assertEquals(2, questions[0].options.size)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/risk/questions", recorded.path)
+    }
+
+    @Test
+    fun `questionnaire submit posts answers and parses result`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"tolerance_score":25,"tolerance_band":"Conservative","assessment":{"score":13,"band":"Conservative","summary":"S","factors":[],"income":null,"monthly_expenses":0.0,"savings_rate":null,"emi_load_ratio":null,"safe_emi_amount":0.0,"max_loan_amount":null,"max_loan_tenure_months":60,"tolerance_score":25,"tolerance_band":"Conservative","behavior_score":0,"questionnaire_completed":true}}""",
+            ),
+        )
+        val result = api.submitRiskQuestionnaire(RiskQuestionnaireSubmitDto(mapOf("horizon" to "under-1y")))
+        assertEquals(25, result.toleranceScore)
+        assertEquals("Conservative", result.toleranceBand)
+        assertEquals(13, result.assessment.score)
+        assertEquals(true, result.assessment.questionnaireCompleted)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/risk/questionnaire", recorded.path)
+        assertTrue(recorded.body.readUtf8().contains("\"horizon\":\"under-1y\""))
     }
 
     private fun tokenResponse() = MockResponse().setResponseCode(200).setBody(
