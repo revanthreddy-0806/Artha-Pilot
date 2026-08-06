@@ -3,7 +3,8 @@
 **Phase 1 — Authentication · Statement Ingestion · Transaction Categorization**
 **Phase 1.5 — Post-Phase-1 Audit & Security Hardening**
 **Phase 2 — Android App (Compose / MVVM / Hilt / Room + SQLCipher)**
-Generated: 2026-08-05 · Status: **Phases 1 + 1.5 + 2 COMPLETE**
+**Phase 3 — Insights, Budgets, Recurring/EMI Detection, Risk & Offline Queuing**
+Generated: 2026-08-06 · Status: **Phases 1 + 1.5 + 2 + 3 COMPLETE**
 
 ---
 
@@ -220,6 +221,7 @@ Coverage: 93% overall (TOTAL 1123 statements, 77 missed)
 | **1** | Auth, GitHub setup, project init, PDF/CSV upload, parsing, extraction, categorization, testing, audit | ✅ **Complete** |
 | **1.5** | Post-Phase-1 audit: 2 High + 8 Medium + 12 Low findings fixed; 28 new tests; migration 0002 | ✅ **Complete** |
 | **2** | Android app: Compose MVVM, Hilt, Retrofit, Room + SQLCipher, DataStore, Navigation, 37 unit tests, lint clean | ✅ **Complete** |
+| **3** | Insights/budgets/recurring/risk APIs, statement history, auth rate limiting, 142 backend tests; Android: 5 new tabs + offline queue + Room v2, 75 unit tests, R8 release build | ✅ **Complete** |
 
 ## 15. Readiness Score
 
@@ -448,3 +450,133 @@ Register → Login → Upload (CSV + PDF) → Browse/Paginate/Filter → Categor
 ## 31. Release Readiness Score
 
 **94 / 100** — see `RELEASE_READINESS_REPORT.md` (Go decision).
+
+---
+
+# PHASE 3 — INSIGHTS, BUDGETS, RECURRING/EMI, RISK & OFFLINE QUEUE
+
+## 32. Phase 3 Overview
+
+| Area | Result |
+|---|---|
+| Scope | Backend: insights dashboard, monthly budgets, recurring/EMI detection, credit-risk profile, statement history, categories source-of-truth, auth rate limiting. Android: 5 new tabs, home alerts, offline category-correction queue, Room v2, R8 release build |
+| Backend suite | 142/142 passed (was 96) — 46 new tests |
+| Android suite | 75/75 passed (was 37) — 38 new tests, 11 suites |
+| Migrations | Backend 0003 — `budgets` table; Android Room v2 — `pending_changes` table |
+| Build | Android debug + release (R8 minify) SUCCESS; lint 0 errors |
+| Version | v3.0.0-phase3 (`develop`), versionCode 3 |
+
+## 33. Backend Phase 3 — Features
+
+### 33.1 Insights API
+- `GET /api/v1/insights/summary?month=` — income/expenses/savings, savings rate, transaction count, top-5 categories for the current (or given `YYYY-MM`) month.
+- `GET /api/v1/insights/monthly-trends?months=N` (1–24, default 6) — month-by-month income/expenses/savings for charting.
+- `GET /api/v1/insights/category-breakdown?month=` — per-category totals, share %, transaction counts (top 5, remainder rolled into *Other*).
+- `GET /api/v1/insights/recurring` — detected recurring debits and EMIs with first/last/next-expected dates, interval, occurrences, confidence.
+- `GET /api/v1/insights/risk-profile` — credit-health score (0–100) with band (Poor/Fair/Good/Excellent), factor breakdown, safe-EMI capacity (30% of income minus existing EMI) and an estimated eligible principal at 10.5% p.a. / 60 months.
+
+### 33.2 Recurring / EMI Detection (`services/recurring_detector.py`, pure logic)
+- Debits only; groups transactions by normalized description (lowercase alphanumeric) with amount match tolerance `max(₹1.00, 0.25% of the larger amount)`.
+- Requires ≥2 distinct months with a common 25–40-day interval (rounded to 30 when 25–35).
+- Confidence = `min(0.95, 0.55 + 0.1 × (distinct_months − 1))`.
+- Kind `emi` when description hints (emi/loan/finance/installment/mortgage/creditcard/housing) or interval 30 days and amount ≥ ₹15,000 in a non-Rent category; otherwise `recurring`.
+- `next_expected_date` rolls forward from the last occurrence past today.
+- Flags are recomputed across the user's full history after every statement ingest (`is_recurring` column).
+
+### 33.3 Budgets API
+- `GET /api/v1/budgets` — user budgets with current-month spent/percentage/overrun.
+- `PUT /api/v1/budgets/{category}` — upsert (create or replace); invalid category → 422 `invalid_category`; limit 0–100M.
+- `DELETE /api/v1/budgets/{category}` — 204; missing → 404 `budget_not_found`.
+- Unique constraint `(user_id, category)` per user; `budgets` table added by migration 0003.
+
+### 33.4 Statement History & Categories
+- `GET /api/v1/statements?page=&page_size=` — paginated history (newest first) with totals; `StatementListResponse` (items + total + paging echo).
+- `GET /api/v1/categories` — the authoritative 18-category taxonomy (single source of truth for the Android UI chips and budget dialog).
+
+### 33.5 Auth Rate Limiting (`core/rate_limit.py`)
+- Fixed-window in-memory limiter keyed by client (first `X-Forwarded-For` hop, else socket IP).
+- Register: 10/min; Login + Refresh: 60/min; 429 response uses the unified error contract (`rate_limited`).
+- Short-circuited when `ENVIRONMENT=test` so the pytest suite is never throttled.
+
+## 34. Backend Phase 3 — API Additions
+
+| Method | Path | Auth | Success | Errors |
+|---|---|---|---|---|
+| GET | `/api/v1/categories` | Bearer | 200 | 401 |
+| GET | `/api/v1/statements` | Bearer | 200 | 401 |
+| GET | `/api/v1/budgets` | Bearer | 200 | 401 |
+| PUT | `/api/v1/budgets/{category}` | Bearer | 200 | 401, 404, 422 |
+| DELETE | `/api/v1/budgets/{category}` | Bearer | 204 | 401, 404 |
+| GET | `/api/v1/insights/summary` | Bearer | 200 | 401, 422 |
+| GET | `/api/v1/insights/monthly-trends` | Bearer | 200 | 401, 422 |
+| GET | `/api/v1/insights/category-breakdown` | Bearer | 200 | 401, 422 |
+| GET | `/api/v1/insights/recurring` | Bearer | 200 | 401 |
+| GET | `/api/v1/insights/risk-profile` | Bearer | 200 | 401 |
+| POST | `/api/v1/auth/register` | – | 201 | 409, 422, **429** |
+| POST | `/api/v1/auth/login` | – | 200 | 401, 422, **429** |
+| POST | `/api/v1/auth/refresh` | – | 200 | 401, 422, **429** |
+
+New error codes: `invalid_month`, `invalid_category`, `budget_not_found`, `rate_limited`.
+
+## 35. Backend Phase 3 — Tests
+
+- New unit suites: `test_recurring_detector` (11), `test_risk_service` (7), `test_rate_limit` (7).
+- New integration suites: `test_insights_api` (7), `test_budgets_api` (7), `test_meta_api` (3).
+- Extended: `test_statements_api` (+3 pagination tests).
+- **Full suite: 142 passed, 0 failed** in ~65 s; 1 benign sklearn deprecation warning; `compileall` clean.
+- Key verification cases: EMI hint → kind `emi`; large non-Rent 30-day debit → `emi`; Rent EMIs stay `recurring`; credits never flagged; next-expected rolls past today; risk bands (Poor < 40 < Fair < 60 < Good < 80 ≤ Excellent); safe-EMI = 30% income − existing EMI; loan principal formula; limiter per-client isolation + window expiry + 429 contract; budgets upsert/overrun/404/422; month validation `^\d{4}-\d{2}$`.
+
+## 36. Android Phase 3 — Features
+
+### 36.1 Screens & Navigation
+- Bottom navigation with 5 tabs: **Transactions** (Home), **Insights**, **Budgets**, **Recurring**, **Risk**; plus **Upload** and **Statements history** routes pushed from Home.
+- Insights tab: monthly summary card (income/expenses/savings + savings rate), 6-month bar chart (hand-rolled, income vs expenses), spending-by-category bars, offline banner.
+- Budgets tab: per-category cards with progress bars and overrun flags, add/edit dialog with category dropdown (from the API taxonomy), delete action.
+- Recurring tab: detected recurring/EMI cards with kind badge, confidence, interval, next expected date.
+- Risk tab: score ring with band color, factor list with impact, loan-eligibility card (safe EMI, estimated principal, tenure @ 10.5%).
+- Statements tab: paginated upload history with status chips and transaction counts, infinite scroll (page size 50).
+- Home: alerts section (budget overruns as warnings, EMIs due within 7 days as info), dynamic category filter chips from the API, "↻ recurring" badge on recurring transactions.
+
+### 36.2 Offline Category-Correction Queue
+- Room v2 (`MIGRATION_1_2`) adds `pending_changes` (transactionId, newCategory, createdAt).
+- On `ApiException.Network`, `TransactionRepository` persists the correction locally, applies it optimistically, and returns the local entity.
+- `fetchTransactions` flushes the queue first: pending corrections replay to the server (best-effort; failures remain queued).
+
+### 36.3 Release Hardening
+- versionCode 3 / versionName `3.0.0`; per-build `API_BASE_URL` (debug: `http://10.0.2.2:8000/api/v1/`; release: HTTPS placeholder to override).
+- R8 minification + resource shrinking enabled for release (`assembleRelease` SUCCESS).
+- Statement history mirrored into Room (`StatementDao.upsertAll`) for offline rendering on the Statements tab.
+
+### 36.4 Android Tests (75/75)
+- New suites: `InsightsViewModelTest` (3), `BudgetsViewModelTest` (5), `RecurringViewModelTest` (2), `RiskViewModelTest` (3), `StatementsViewModelTest` (5, incl. pagination + offline fallback).
+- Extended: `MappersTest` (+6 DTO→domain→entity round trips), `ArthaApiTest` (+8 MockWebServer endpoint contracts, incl. PUT body `monthly_limit` snake_case and DELETE 204), `TransactionsViewModelTest` (rewritten for the 3-repository constructor; +5: API categories, offline fallback, overrun alert, EMI-due alert, alert ordering).
+
+## 37. Build Gates (Phase 3)
+
+| Gate | Command | Result |
+|---|---|---|
+| Debug APK | `.\gradlew.bat assembleDebug` | ✅ SUCCESS |
+| Release APK (R8) | `.\gradlew.bat assembleRelease` | ✅ SUCCESS |
+| Unit tests | `.\gradlew.bat testDebugUnitTest` | ✅ 75/75 |
+| Lint | `.\gradlew.bat lintDebug` | ✅ 0 errors, 5 warnings (version notices + known icon false positive) |
+| Backend | `python -m pytest -q` | ✅ 142/142 |
+
+## 38. Phase 3 Commit History (`develop`)
+
+- `e825cf7` feat(backend): categories source-of-truth + statements history endpoints
+- `fd463ec` feat(backend): monthly budgets API with per-category limits (migration 0003)
+- `c72b35d` feat(backend): insights dashboard, recurring/EMI detection and risk profile APIs
+- `a24a42a` feat(backend): per-endpoint rate limiting on auth routes
+- `924177e` feat(android): insights DTOs, API endpoints and Room v2 pending-changes migration
+- `9eedf15` feat(android): insights and budget repositories, statement history and offline category queue
+- `bc1ef50` feat(android): insights, budgets, recurring, risk and statements screens with home alerts
+- `7ff768a` build(android): v3.0.0 with per-build API URLs and R8 release minification
+- `422aec5` test(android): view-model and API mapper coverage for the new tabs
+
+## 39. Phase 3 Known Limitations
+
+- Rate limiter is in-memory (per-process) — a multi-worker deployment needs a shared store (Redis).
+- Risk score is rule-based on 3 months of history; no bureau data (by design, educational scope).
+- PDF text-extraction limitation carries over (scanned/image PDFs unsupported).
+- Release `API_BASE_URL` is a placeholder HTTPS URL — must be set to the real production endpoint before shipping.
+- Docker images apply `alembic upgrade head` at container start (added this phase) — previously migrations had to be applied manually.

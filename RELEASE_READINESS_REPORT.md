@@ -1,10 +1,10 @@
-# Release Readiness Report — Artha Pilot v2.0.0-phase2
+# Release Readiness Report — Artha Pilot v3.0.0-phase3
 
-**Version:** 2.0.0-phase2 (Android client; Phases 1 + 1.5 backend baseline)
-**Date:** 2026-08-05
+**Version:** 3.0.0-phase3 (Insights · Budgets · Recurring/EMI · Risk · Statement history · Offline queue)
+**Date:** 2026-08-06
 **Reviewer:** Principal Engineer (automated audit + live verification)
 **Branches:** `develop` (source of truth) · `main` untouched
-**Tag:** `v2.0.0-phase2`
+**Tag:** `v3.0.0-phase3`
 
 ---
 
@@ -13,92 +13,96 @@
 | Gate | Command | Result |
 |---|---|---|
 | Debug APK | `.\gradlew.bat :app:assembleDebug` | ✅ BUILD SUCCESSFUL — `app-debug.apk` |
-| Release APK | `.\gradlew.bat :app:assembleRelease` | ✅ BUILD SUCCESSFUL (incl. `lintVitalRelease`) |
-| Unit tests | `.\gradlew.bat :app:testDebugUnitTest` | ✅ 37/37 |
+| Release APK (R8 minify + shrink) | `.\gradlew.bat :app:assembleRelease` | ✅ BUILD SUCCESSFUL (incl. `lintVitalRelease`) |
+| Unit tests | `.\gradlew.bat :app:testDebugUnitTest` | ✅ 75/75 (11 suites) |
 | Lint | `.\gradlew.bat :app:lintDebug` | ✅ 0 errors, 5 warnings |
-| Backend suite | `pytest` (Docker/venv) | ✅ 96/96 |
-| Toolchain | Gradle 9.6.1 wrapper · AGP 9.3.1 · Kotlin/Compose 2.3.10 · KSP 2.3.10 · Java 17 · compileSdk 37 / minSdk 26 | ✅ |
+| Backend suite | `python -m pytest -q` (venv) | ✅ 142/142 |
+| Backend syntax | `python -m compileall` | ✅ clean |
+| Toolchain | Gradle 9.6.1 · AGP 9.3.1 · Kotlin/Compose 2.3.10 · KSP 2.3.10 · Java 17 · compileSdk 37 / minSdk 26 · FastAPI/Python 3.12 | ✅ |
 
 ## 2. Test Results
 
-- **Android unit tests: 37/37 passing, 0 failures, 0 errors** (6 suites):
-  - ApiErrorMapperTest 6 · ArthaApiTest (MockWebServer) 7 · MappersTest 7 · ApiExceptionTest 5 · AuthViewModelTest 6 · TransactionsViewModelTest 7 (incl. new offline-cache-fallback tests)
-- **Backend: 96/96 passing** (regression check after dead-code cleanup).
-- **User Acceptance Test (live Dockerized backend): 19/19 PASS** — register, login (+ wrong-password → 401 `invalid_credentials`), CSV upload (7 txns, `processed`), PDF upload (5 txns, `processed`), oversized file → 413 `file_too_large`, browse/paginate/category-filter, PATCH category correction + persistence, refresh-token rotation (reuse → 401), expired access token → 401 `invalid_token` + refresh recovery, missing token → 401 `missing_token`, logout semantics.
+- **Android unit tests: 75/75 passing** (11 suites): ApiErrorMapperTest 6 · ArthaApiTest 15 (MockWebServer, incl. 8 new Phase 3 endpoint contracts) · MappersTest 13 · ApiExceptionTest 5 · AuthViewModelTest 6 · TransactionsViewModelTest 11 · InsightsViewModelTest 3 · BudgetsViewModelTest 5 · RecurringViewModelTest 2 · RiskViewModelTest 3 · StatementsViewModelTest 5.
+- **Backend: 142/142 passing** (was 96; +46): recurring detector 11, risk service 7, rate limiter 7, insights API 7, budgets API 7, meta API 3, statements pagination +3.
+- **User Acceptance Test (live Dockerized backend): 31/31 PASS** — register/login, categories (18 unique), CSV upload (7 txns), PDF upload (5 txns), statements pagination (total=2, newest first, auth 401), insights summary/trends (6 months sorted)/breakdown (non-empty month, sorted desc)/invalid month 422, recurring list, risk profile (score band + tenure 60), budgets (set/update/list with spent+percentage/delete 204/empty list/delete missing 404/invalid category 422), register rate limiting (10/min honored: no 429 in first 10, 429 at 11+), refresh rotation.
 
 ## 3. Lint Summary
 
-**0 errors, 5 warnings** (all previously known and intentional):
+**0 errors, 5 warnings** (all known and intentional):
 - 4× `NewerVersionAvailable` (kotlin compose 2.4.10, retrofit 3.0.0 ×2, coroutines 1.11.0) — current versions pinned/verified; upgrades deferred.
-- 1× `ObsoleteSdkInt` (`mipmap-anydpi-v26`) — false positive; adaptive icons require the `-v26` qualifier (AAPT fails without it).
+- 1× `ObsoleteSdkInt` (`mipmap-anydpi-v26`) — false positive; adaptive icons require the `-v26` qualifier.
 
 ## 4. Security Audit
 
 | Item | Verdict |
 |---|---|
 | JWT storage / refresh rotation | ✅ DataStore, never logged; rotation with jti revocation verified live |
-| DB encryption | ✅ SQLCipher 4.17.0, 32-byte SecureRandom passphrase, AES/GCM sealed in Android Keystore; passphrase pre-warmed off the main thread |
+| DB encryption | ✅ SQLCipher 4.17.0, 32-byte SecureRandom passphrase, AES/GCM sealed in Android Keystore |
 | Backup exclusions | ✅ `allowBackup=false` + `fullBackupContent=false` + `dataExtractionRules` (all domains excluded) |
-| Cleartext policy | ✅ Dev-only hosts (10.0.2.2/localhost) via `network_security_config`; release should use HTTPS |
-| Debug logging | ✅ Logging interceptor `BODY` only in debug builds, `NONE` in release |
-| API base URL | ⚠️ Single `API_BASE_URL` for all build types (dev value `http://10.0.2.2:8000`); **release builds must override with an HTTPS URL before shipping to production** (Known Issue) |
-| Backend | ✅ bcrypt(12), algorithm-pinned JWT, parameterized SQL, upload extension whitelist + 10 MB cap. ⚠️ Documented hardening backlog: prod compose defaults (JWT secret/ENVIRONMENT), CORS `*` dev default, rate limiting, magic-byte upload sniffing |
+| Cleartext policy | ✅ Dev-only hosts via `network_security_config`; release uses HTTPS URL slot |
+| API base URL | ⚠️ Per-build `API_BASE_URL` now: debug `http://10.0.2.2:8000/api/v1/`, release HTTPS placeholder — **release URL must be set to the real production endpoint before shipping** (Known Issue) |
+| R8 minification | ✅ Release minified + resource-shrunk; DTO keep rules retained |
+| Auth rate limiting | ✅ Register 10/min, login/refresh 60/min per client; 429 `rate_limited` under the unified error contract; verified live |
+| Backend | ✅ bcrypt(12), algorithm-pinned JWT, parameterized SQL, upload whitelist + 10 MB cap. ⚠️ Documented hardening backlog: prod compose defaults (JWT secret/ENVIRONMENT), CORS `*` dev default, magic-byte upload sniffing, shared rate-limit store for multi-worker |
 
 ## 5. Performance Audit
 
 | Item | Verdict |
 |---|---|
-| Main-thread blocking | ✅ Eliminated: passphrase warm-up off-main; no `getSharedPreferences`; all IO on `Dispatchers.IO`/OkHttp threads |
-| Composition allocations | ✅ `Regex` hoisted out of per-item formatting; `LazyColumn` stable keys |
-| Pagination | ✅ Page size 50 with `hasMore` guard, race-free `isLoading` flag |
-| Memory | ✅ 10 MB client-side upload cap before reading; ⚠️ list grows unbounded across many pages (Paging 3 recommended for Phase 3, no correctness impact) |
-| Room | ✅ Indexed `statementId`, `@Upsert` mirroring, Flow observation |
+| Main-thread blocking | ✅ None — all IO on IO/OkHttp threads; passphrase pre-warmed off-main |
+| Insights aggregation | ✅ Single query per month window; trends computed in Python over one fetch; ~55k txns/s classifier unaffected |
+| Pagination | ✅ Transactions + statements page size 50 with `hasMore` guard; ⚠️ unbounded in-memory list across many pages (Paging 3 recommended, no correctness impact) |
+| Memory | ✅ 10 MB client-side upload cap; offline queue grows only with pending corrections |
+| Room | ✅ `@Upsert` mirroring, Flow observation, migration 1→2 applied via `MIGRATION_1_2` |
 
 ## 6. Technical Debt
 
-- Unbounded in-memory transaction list across many pages → adopt Paging 3 (Phase 3).
-- Duplicated category-name lists (HomeScreen filters/dialog vs backend `CATEGORIES`) — serve a `/meta/categories` endpoint in Phase 3 to keep a single source of truth.
-- `statement` table written but not yet surfaced in UI (statements list is a Phase 3 feature).
-- Minify/obfuscation disabled for release (`isMinifyEnabled=false`) — enable with R8 + DTO keep rules when signing a store build.
-- `AppError.details` parameter unused on the backend (part of the error contract; keep).
+- Unbounded in-memory transaction/statement lists → adopt Paging 3.
+- In-memory fixed-window rate limiter is per-process → shared store (Redis) for multi-worker deployments.
+- No instrumentation tests (Room/SQLCipher/Compose UI/TokenAuthenticator) — emulator/device run recommended before store release.
+- `AppError.details` unused on the backend (part of the error contract; keep).
+- Risk model is rule-based, no bureau data (educational scope, by design).
 
 ## 7. Known Issues
 
-1. **Release API URL**: release APK points at the emulator dev host. Must be overridden (HTTPS) for production. [MEDIUM]
-2. **No instrumentation tests** — Room/SQLCipher/Compose/TokenAuthenticator verified by build, unit tests and live API UAT only; device/emulator run recommended before store release.
-3. **Auth start-destination flash** on cold start while DataStore loads (cosmetic).
-4. **Offline**: cached snapshot is shown offline; uploads and category corrections require connectivity (queuing is Phase 3).
-5. **Backend prod hardening** deferred (documented Phase 1.5): rate limiting, refresh-revocation endpoint, CORS hardening, compose production defaults, magic-byte validation.
-6. `mipmap-anydpi-v26` lint warning is a false positive.
+1. **Release API URL**: release build points at a placeholder HTTPS URL; must be overridden with the real endpoint before shipping. [MEDIUM]
+2. **No instrumentation tests** — build + unit + live API UAT only. [MEDIUM]
+3. **Auth start-destination flash** on cold start while DataStore loads (cosmetic). [LOW]
+4. **Backend prod hardening** deferred (documented Phase 1.5 + Phase 3): prod compose defaults, CORS hardening, magic-byte validation, Redis rate-limit store. [MEDIUM]
+5. **Offline**: category corrections queue and replay; uploads still require connectivity. [LOW]
+6. `mipmap-anydpi-v26` lint warning is a false positive. [INFO]
 
-## 8. Release Notes — v2.0.0-phase2
+## 8. Release Notes — v3.0.0-phase3
 
-- Android client (Compose MVVM): login/register, JWT storage + transparent refresh rotation, statement upload (PDF + CSV) with client/server 10 MB caps, transaction browsing with pagination and category filters, category correction dialog, logout.
-- Encrypted Room cache (SQLCipher + Keystore) with offline snapshot rendering.
-- Release-readiness hardening: structured-concurrency cancellation handling, 401 error-message fidelity (`invalid_credentials` now surfaces), IO moved to the repository layer, main-thread startup stall removed, dead code removed (client + backend), offline fallback wired and tested.
-- 37/37 Android unit tests, 96/96 backend tests, 19/19 UAT checks, 0 lint errors.
+- **Insights**: monthly summary + savings rate, 6-month income/expense chart, category breakdown, 5-tab bottom navigation (Transactions / Insights / Budgets / Recurring / Risk), statement history screen.
+- **Budgets**: per-category monthly limits with live spent %, overrun states, add/edit/delete; home-screen alerts for overruns and EMIs due within 7 days.
+- **Recurring/EMI detection**: automatic detection on ingest (≥2 distinct months, 25–40-day interval, confidence score); EMI classification for loans/housing/credit-card debits.
+- **Risk profile**: 0–100 credit-health score with factor breakdown; safe-EMI capacity (30% of income) and estimated loan principal (10.5% p.a., 60 months).
+- **Offline queue**: category corrections made offline persist (Room v2) and replay on reconnect.
+- **Backend**: rate limiting on auth (10/min register, 60/min login+refresh); migrations auto-applied at container start.
+- 142/142 backend + 75/75 Android tests, 31/31 UAT checks, 0 lint errors.
 
 ## 9. Readiness Score
 
 | Category | Score |
 |---|---|
-| Build gates (debug/release/tests/lint) | 25/25 |
+| Build gates (debug/release-R8/tests/lint) | 20/20 |
 | Security posture | 18/20 (release URL override + prod hardening backlog) |
 | Performance | 18/20 (paging growth noted) |
 | Test coverage & UAT | 19/20 (instrumentation suite outstanding) |
-| Architecture & code quality | 18/20 (technical debt list above) |
+| Architecture & code quality | 19/20 (debt list above) |
 | Documentation & process | 20/20 |
-| **Total** | **94 / 100** |
+| **Total** | **95 / 100** (up from 94/100 at v2) |
 
 ## 10. Go / No-Go Decision
 
-**✅ GO — release-ready for v2.0.0-phase2 on `develop`.**
+**✅ GO — release-ready for v3.0.0-phase3 on `develop`.**
 
 Rationale:
-- All build gates green; zero lint errors; all tests passing (37 Android + 96 backend); 19/19 live UAT checks.
-- Every verified audit issue fixed and re-verified (fix → rebuild → retest → repeat until green).
-- Tag `v2.0.0-phase2` created on `develop`; `main` untouched per policy.
+- All build gates green (debug, release-with-R8, 75/75 unit tests, lint 0 errors, 142/142 backend).
+- 31/31 live UAT checks against the Dockerized stack, including a bug found during UAT (migrations not applied at container start) — fixed (Dockerfile now runs `alembic upgrade head`) and re-verified.
+- Tag `v3.0.0-phase3` created on `develop`; `main` untouched per policy.
 
-Conditional items for **production** (not blockers for this phase-2 release): HTTPS release URL, minify/signing, instrumentation suite, backend prod-compose hardening.
+Conditional items for **production** (not blockers for this phase-3 release): real HTTPS release URL, store signing, instrumentation suite, backend prod-compose hardening, shared rate-limit store.
 
-*Approval from the client remains required before Phase 3 begins.*
+*Approval from the client remains required before any production promotion.*

@@ -14,7 +14,8 @@ Artha Pilot helps users take control of their money with AI-assisted bank statem
 | Data | Room offline cache (Android) + SQLCipher encryption + DataStore token store |
 | Security | JWT auth (rotation), BCrypt password hashing, Keystore-protected DB passphrase, backups disabled |
 | Parsing | PDF & CSV bank statement upload, auto-format detection |
-| Insights | Expense dashboard, EMI/recurring detection, risk assessment (Phase 3) |
+| Insights | Expense dashboard, monthly trends, category breakdown, EMI/recurring detection, credit-risk score + loan eligibility, monthly budgets, statement history (Phase 3) |
+| Offline | Room cache + queued category corrections replayed when connectivity returns (Phase 3) |
 
 ## Repository Layout
 
@@ -26,7 +27,8 @@ Artha-Pilot/
 ├── scripts/     # Utility scripts
 ├── docker-compose.yml
 ├── ENGINEERING_REPORT.md
-└── PHASE_2_COMPLETION_REPORT.md
+├── PHASE_2_COMPLETION_REPORT.md
+└── PHASE_3_COMPLETION_REPORT.md
 ```
 
 ## Quick Start (Backend)
@@ -61,7 +63,9 @@ cd android
 
 Clean Architecture + layered design (API → Services → Repositories → Domain), Repository Pattern, SOLID principles, structured logging, and a 3-tier categorization cascade (rules → ML → fallback).
 
-**Android:** MVVM with Jetpack Compose; Hilt DI; Retrofit + OkHttp (auth interceptor + refresh authenticator); Room with SQLCipher encryption (passphrase sealed in Android Keystore); DataStore Preferences for the JWT pair; offline cache mirrors the last successful fetch.
+**Android:** MVVM with Jetpack Compose; Hilt DI; Retrofit + OkHttp (auth interceptor + refresh authenticator); Room with SQLCipher encryption (passphrase sealed in Android Keystore); DataStore Preferences for the JWT pair; offline cache mirrors the last successful fetch and queues category corrections for replay when connectivity returns.
+
+**Phase 3 (v3.0.0):** monthly insights (summary, 6-month trends, category breakdown), monthly budgets per category with overrun alerts, recurring/EMI detection with next-expected dates, credit-risk score (0–100) with a safe-loan-eligibility estimate, statement history, auth rate limiting (register 10/min, login/refresh 60/min per client), and home-screen alerts for budget overruns and EMIs due within a week.
 
 See [ENGINEERING_REPORT.md](ENGINEERING_REPORT.md) for detailed architecture, schema, API reference, and phase status. Release-readiness status and Go/No-Go: [RELEASE_READINESS_REPORT.md](RELEASE_READINESS_REPORT.md).
 
