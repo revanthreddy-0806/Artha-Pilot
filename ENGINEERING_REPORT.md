@@ -637,3 +637,34 @@ Android:
 - Android: `testDebugUnitTest` → **79/79** (12 suites); `assembleDebug` ✅; `assembleRelease` (R8) ✅; `lintDebug` → **0 errors, 5 warnings** (4 version notices, 1 `v26` false positive).
 - Live UAT: **47/47** green against a fresh Dockerized stack.
 - Release rule: fixes verified → committed → pushed to `develop` → tag `v3.0.0-phase3` re-cut from the verified commit → fresh clean-room re-verification of the tagged commit.
+
+## 41. Release Engineering Pass (2026-08-06)
+
+Independent dependency + release-configuration audit, fixes, and full gate re-run on `develop`.
+
+### 41.1 Dependency security remediation
+`pip-audit` (OSV database, full transitive resolution) flagged the pinned runtime stack as affected by published 2026 advisories. All were remediated by pinning patched releases (`backend/requirements.txt`):
+
+| Package | From | To | Advisories |
+|---|---|---|---|
+| pypdf | 5.1.0 | 6.15.0 | 35+ (CVE-2026-57204 PDF stream-length DoS; GHSA-jm82-fx9c-mx94 and others, fixed ≥ 6.13.3) |
+| PyJWT | 2.10.1 | 2.13.0 | GHSA-752w-5fwx-jx9f `crit` header bypass (CVE-2026-32597; same class as CVE-2025-59420, CVSS 7.5); PYSEC-2026-175/176/177/178/179 etc. |
+| python-multipart | 0.0.20 | 0.0.32 | Unbounded multipart header/preamble DoS; PYSEC-2026-1852 path traversal (non-default config) |
+| fastapi | 0.115.6 | 0.141.1 | Resolves starlette 0.41.3 → 1.4.1 (~9 starlette advisories) |
+| pytest (dev) | 8.3.4 | 9.0.3 | PYSEC-2026-1845 |
+
+**Verification:** `pip-audit -r backend/requirements.txt` (full transitive) → **"No known vulnerabilities found"**; `pytest` → **149/149**; coverage **94%**; `compileall` clean. 112 warnings are third-party deprecation notices (starlette 1.x testclient, reportlab, sklearn) — zero from app code.
+
+### 41.2 Release configuration wiring (Android)
+- **Signing**: release builds sign from gitignored `android/keystore.properties` (template: `keystore.properties.example`). Without a provisioned keystore the build stays green but produces an **unsigned** APK with a loud Gradle warning — signing can never silently go missing. Verified: no keystore/secrets in the repo; `.gitignore` covers `android/keystore.properties` and `*.keystore`/`*.jks`.
+- **Production URL**: release `API_BASE_URL` resolves from `ARTHA_PILOT_API_BASE_URL` (gradle property or env var) with the documented placeholder as fallback; `assembleRelease` warns when the placeholder or a non-HTTPS URL is in use. Verified both fallback and override paths in `BuildConfig`.
+- **Debug/release separation** (verified in built artifacts): debug APK contains `http://10.0.2.2:8000` + `network_security_config`; release APK contains only the HTTPS URL, **no** cleartext config, not debuggable, R8 mapping/seeds/usage generated.
+
+### 41.3 Gate numbers (post-change, local repo, `--rerun-tasks` where applicable)
+- `assembleDebug` ✅ · `assembleRelease` ✅ (R8 minify + shrink; unsigned by design until a keystore is provisioned) · `testDebugUnitTest` → **79/79** (12 suites, 0 failures) · `lintDebug` → **0 errors / 5 warnings** (4 version notices, 1 `v26` false positive).
+- Backend gates re-run on the working repo after the dependency bump → **149/149**, coverage **94%**, `pip-audit` clean.
+
+### 41.4 Remaining ship-time items (operator-supplied, not code defects)
+1. Set `ARTHA_PILOT_API_BASE_URL` to the real production HTTPS endpoint.
+2. Provision the release keystore (`android/keystore.properties`) so release APKs are signed.
+3. Prod deployment: `ENVIRONMENT=production`, strong `JWT_SECRET_KEY`, CORS origins (unchanged guidance from §40.5).

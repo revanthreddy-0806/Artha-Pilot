@@ -131,3 +131,56 @@ Independent principal-engineer verification (clean-room clone + fresh Docker/DB 
 **✅ GO (GO WITH DOCUMENTED BACKLOG).** Zero verified defects remain in the tagged code; every non-fixed item is an explicitly documented limitation or a production-deployment configuration. `main` remains untouched; tag `v3.0.0-phase3` will be re-cut from the final verified commit on `develop`.
 
 *Approval from the client remains required before any production promotion.*
+
+---
+
+## 12. Release Engineering Pass (2026-08-06)
+
+Final Release-Engineering pass on `develop`: dependency-CVE remediation + release-configuration wiring + full gate re-run. **This section supersedes §10–11 for any conflicts.**
+
+### 12.1 Commits added on `develop`
+| Commit | Scope |
+|---|---|
+| `ac7f506` | `fix(backend)`: bump pinned deps to patched releases for 2026 CVEs |
+| `5ec2e0f` | `build(android)`: wiring for release signing (gitignored keystore.properties) + configurable production API URL |
+
+### 12.2 Build / Test / Lint Status (re-run after the changes)
+| Gate | Result |
+|---|---|
+| `.\gradlew.bat :app:assembleDebug` | ✅ BUILD SUCCESSFUL |
+| `.\gradlew.bat :app:assembleRelease` | ✅ BUILD SUCCESSFUL (R8 minify + shrink; **unsigned** — see 12.4.1) |
+| `.\gradlew.bat :app:testDebugUnitTest` | ✅ **79/79** (12 suites, 0 failures) |
+| `.\gradlew.bat :app:lintDebug` | ✅ **0 errors / 5 warnings** (4 version notices, 1 `v26` false positive) |
+| Backend `python -m pytest` | ✅ **149/149**, coverage **94%** |
+| Backend `compileall` + `pip-audit` (full transitive) | ✅ clean · **"No known vulnerabilities found"** |
+| Toolchain | Gradle 9.6.1 · AGP 9.3.1 · Kotlin/Compose 2.3.10 · Java 17 · SDK 37/26 · Python 3.12 |
+
+### 12.3 Security Audit (delta vs §4)
+| Item | Verdict |
+|---|---|
+| Vulnerable pinned deps (pypdf 5.1.0, PyJWT 2.10.1, python-multipart 0.0.20, starlette 0.41.3 via fastapi 0.115.6) | ✅ **Remediated** — pypdf 6.15.0 · PyJWT 2.13.0 · python-multipart 0.0.32 · fastapi 0.141.1 (starlette 1.4.1); full transitive scan clean |
+| Release signing | ✅ **Wired** via gitignored `keystore.properties`; **no secrets committed**; builds warn loudly when unsigned |
+| Release URL | ✅ **Configurable** via `ARTHA_PILOT_API_BASE_URL` (gradle property or env); placeholder fallback + build-time warning |
+| Debug/release separation (verified in APKs) | ✅ Debug: `http://10.0.2.2:8000`, cleartext config debug-only → absent from release; release not debuggable, HTTPS-only, R8 mapping generated |
+
+### 12.4 Technical Debt / Known Issues (updated)
+- Unsigned release APK until the operator provisions `android/keystore.properties` (see 12.5). [BLOCKER at ship, not a code defect]
+- Release `API_BASE_URL` placeholder until `ARTHA_PILOT_API_BASE_URL` is set. [BLOCKER at ship, not a code defect]
+- Unchanged from prior sections: Paging 3, shared rate-limit store (Redis), instrumentation tests, prod-compose hardening (`ENVIRONMENT`, JWT secret, CORS), token-at-rest encryption (v4), event-loop upload work.
+
+### 12.5 Readiness Score (final)
+| Category | Score |
+|---|---|
+| Build gates (debug/release-R8/tests/lint) | 20/20 |
+| Security posture | 19/20 (signing + URL are operator-supplied; wiring verified) |
+| Performance | 18/20 (paging growth noted) |
+| Test coverage & UAT | 19/20 (instrumentation suite outstanding) |
+| Architecture & code quality | 19/20 |
+| Documentation & process | 20/20 |
+| **Total** | **95 / 100** |
+
+### 12.6 Go / No-Go Decision (final)
+**✅ GO (CONDITIONAL) — codebase is release-ready on `develop`.**
+- All build/test/lint/security gates green; all prior release-blocking code findings closed (incl. dependency CVEs).
+- Release is **not shippable as-is** only because two artifacts require operator inputs that cannot live in the repo: (1) a release keystore to sign APKs, (2) the production HTTPS `API_BASE_URL`. Both are one-step configuration actions now documented at the point of use.
+- `main` remains untouched. Tag `v3.0.0-phase3` is unchanged (still `b71cf4c`); recut at final-verified head by the owner.

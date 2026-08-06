@@ -56,8 +56,10 @@ cd android
 # Debug APK: android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-- The debug build targets the local backend at `http://10.0.2.2:8000/api/v1/` (emulator → host). Override via `buildConfigField("String", "API_BASE_URL", ...)` in `android/app/build.gradle.kts`.
-- Cleartext HTTP is allowed only for the dev hosts in `network_security_config.xml`; release builds should use HTTPS.
+- The debug build targets the local backend at `http://10.0.2.2:8000/api/v1/` (emulator → host). Cleartext HTTP is permitted **only** in debug builds (`network_security_config` lives in `src/debug`); release builds use HTTPS.
+- **Release builds**:
+  - API endpoint: set `ARTHA_PILOT_API_BASE_URL` (gradle property `-P` or environment variable) to the production HTTPS URL before packaging. Release `assembleRelease` warns if the placeholder or a non-HTTPS URL is used.
+  - Signing: copy `android/keystore.properties.example` to `android/keystore.properties`, fill in your release keystore details, and place the keystore under `android/`. The file is gitignored — **never commit signing secrets**. Without it, release APKs build **unsigned** (not shippable) with a loud warning.
 
 ## Architecture
 

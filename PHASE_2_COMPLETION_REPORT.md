@@ -64,7 +64,7 @@ Error contract: all failures map through `ApiErrorMapper` → sealed `ApiExcepti
 
 ## 6. Authentication Status
 
-- Emulated host backend at `http://10.0.2.2:8000/api/v1/` (override via BuildConfig `API_BASE_URL` in `android/app/build.gradle.kts`).
+- Emulated host backend at `http://10.0.2.2:8000/api/v1/` (debug builds only; release URL resolves from `ARTHA_PILOT_API_BASE_URL` — see section 12).
 - Access token attached to every request by `AuthInterceptor`; refresh handled transparently by `TokenAuthenticator`; expired/invalid session redirects to Login via AppNavHost auth-state effect.
 - Passwords are never stored; BCrypt hashing remains server-side (Phase 1).
 
@@ -118,3 +118,12 @@ Error contract: all failures map through `ApiErrorMapper` → sealed `ApiExcepti
 - Version catalog was corrected during bootstrap: the originally pinned `kotlin = "2.3.11"` did not exist (Compose plugin line tops out at 2.3.10); corrected to `2.3.10` for both Kotlin and KSP. All other pinned versions were verified against Maven Central / Google Maven.
 - Gradle wrapper (9.6.1) was bootstrapped into the repository (previously missing) so builds are reproducible.
 - Detailed engineering audit: see `ENGINEERING_REPORT.md` sections 16–28.
+
+## 12. Release Engineering Update (2026-08-06)
+
+Release-configuration items from §10 were resolved on `develop`:
+
+- **Release signing**: `android/app/build.gradle.kts` now signs release builds from gitignored `android/keystore.properties` (template `keystore.properties.example`). No secrets committed; unsigned builds warn loudly.
+- **Staging vs production URL**: release `API_BASE_URL` is resolved from `ARTHA_PILOT_API_BASE_URL` (gradle property/env) with a documented placeholder fallback; debug still uses `http://10.0.2.2:8000`. Verified in built APKs that no debug URL or cleartext config appears in release.
+- Backend pinned dependencies were remediated against 2026 CVEs (`requirements.txt`, some supersede the §10 "dependency upgrades" item).
+- Details: `ENGINEERING_REPORT.md` §41; final decision: `RELEASE_READINESS_REPORT.md` §12.

@@ -26,6 +26,11 @@ All notable changes to Artha Pilot are documented here, per release.
 - Live UAT against a fresh Dockerized stack: **47/47** checks green (auth/refresh/expiry/forgery flows, uploads incl. 413 >10 MB, filters, correction persistence, cross-user isolation, budgets/insights/risk, DB persistence across container restart, rate limiting 429 at 11+).
 - Clean-room verification: fresh clone → fresh venv → fresh Docker volume → migrations auto-applied at 0003 → all gates green; `main` untouched.
 
+### Release-engineering pass (post sign-off; commits `ac7f506`, `5ec2e0f`)
+- **Backend dependency CVE remediation** (`requirements.txt`): pypdf 5.1.0 → 6.15.0 (PDF DoS CVE-2026-57204 + other advisories), PyJWT 2.10.1 → 2.13.0 (crit-header bypass GHSA-752w-5fwx-jx9f / CVE-2026-32597), python-multipart 0.0.20 → 0.0.32 (multipart DoS, path traversal), fastapi 0.115.6 → 0.141.1 (starlette 0.41.3 → 1.4.1), pytest 8.3.4 → 9.0.3 (dev-only). `pip-audit` full transitive scan → **0 known vulnerabilities**; 149/149 tests, coverage **94%**.
+- **Android release config** — signing wired from gitignored `android/keystore.properties` (template `keystore.properties.example`; no secrets committed); release `API_BASE_URL` resolved from `ARTHA_PILOT_API_BASE_URL` (gradle property/env) with placeholder warning. Verified in artifacts: release APK not debuggable, no cleartext network config, R8 mapping generated, debug URL absent from release.
+- Gates re-run after changes: `assembleDebug`/`assembleRelease` ✅, `testDebugUnitTest` **79/79**, `lintDebug` **0 errors / 5 warnings**.
+
 ## [v2.0.0-phase2] — 2026-08-05
 
 ### Android

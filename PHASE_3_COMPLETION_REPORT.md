@@ -84,3 +84,10 @@
 - Docs updated: README.md, ENGINEERING_REPORT.md, CHANGELOG.md, RELEASE_READINESS_REPORT.md.
 - UAT against the live Dockerized backend: executed and recorded in RELEASE_READINESS_REPORT.md.
 - Tag: `v3.0.0-phase3`.
+
+## 9. Release Engineering Update (2026-08-06)
+
+- **Dependencies**: pinned backend deps remediated against 2026 CVEs — pypdf 6.15.0, PyJWT 2.13.0, python-multipart 0.0.32, fastapi 0.141.1 (starlette 1.4.1). `pip-audit` full-transitive scan → 0 known vulnerabilities; 149/149 backend tests, coverage 94%.
+- **Release config**: release signing wired via gitignored `android/keystore.properties`; production URL resolve from `ARTHA_PILOT_API_BASE_URL`. Verified debug/release separation (`http://10.0.2.2` and cleartext config are debug-only; release not debuggable, HTTPS-only).
+- Gates re-run after changes: `assembleDebug`/`assembleRelease` ✅, `testDebugUnitTest` **79/79**, `lintDebug` **0 errors / 5 warnings**.
+- See `ENGINEERING_REPORT.md` §41 and `RELEASE_READINESS_REPORT.md` §12.
