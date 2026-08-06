@@ -7,7 +7,9 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import com.arthapilot.app.BuildConfig
 import com.arthapilot.app.data.local.ArthaDatabase
+import com.arthapilot.app.data.local.MIGRATION_1_2
 import com.arthapilot.app.data.local.PassphraseProvider
+import com.arthapilot.app.data.local.PendingChangeDao
 import com.arthapilot.app.data.local.StatementDao
 import com.arthapilot.app.data.local.TokenStore
 import com.arthapilot.app.data.local.TransactionDao
@@ -16,6 +18,10 @@ import com.arthapilot.app.data.remote.AuthInterceptor
 import com.arthapilot.app.data.remote.TokenAuthenticator
 import com.arthapilot.app.data.repository.AuthRepository
 import com.arthapilot.app.data.repository.AuthRepositoryImpl
+import com.arthapilot.app.data.repository.BudgetRepository
+import com.arthapilot.app.data.repository.BudgetRepositoryImpl
+import com.arthapilot.app.data.repository.InsightsRepository
+import com.arthapilot.app.data.repository.InsightsRepositoryImpl
 import com.arthapilot.app.data.repository.StatementRepository
 import com.arthapilot.app.data.repository.StatementRepositoryImpl
 import com.arthapilot.app.data.repository.TransactionRepository
@@ -103,6 +109,7 @@ object DatabaseModule {
     ): ArthaDatabase =
         Room.databaseBuilder(context, ArthaDatabase::class.java, "artha_pilot.db")
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
+            .addMigrations(MIGRATION_1_2)
             .build()
 
     @Provides
@@ -110,6 +117,9 @@ object DatabaseModule {
 
     @Provides
     fun provideStatementDao(db: ArthaDatabase): StatementDao = db.statementDao()
+
+    @Provides
+    fun providePendingChangeDao(db: ArthaDatabase): PendingChangeDao = db.pendingChangeDao()
 }
 
 @Module
@@ -124,4 +134,10 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindStatementRepository(impl: StatementRepositoryImpl): StatementRepository
+
+    @Binds
+    abstract fun bindInsightsRepository(impl: InsightsRepositoryImpl): InsightsRepository
+
+    @Binds
+    abstract fun bindBudgetRepository(impl: BudgetRepositoryImpl): BudgetRepository
 }

@@ -30,3 +30,11 @@ data class StatementEntity(
     val transactionCount: Int,
     val createdAt: String,
 )
+
+@Entity(tableName = "pending_changes")
+data class PendingChangeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val transactionId: Long,
+    val newCategory: String,
+    val createdAt: Long,
+)
