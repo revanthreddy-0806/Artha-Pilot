@@ -1,5 +1,6 @@
 package com.arthapilot.app.data.repository
 
+import com.arthapilot.app.data.local.ArthaDatabase
 import com.arthapilot.app.data.local.TokenStore
 import com.arthapilot.app.data.remote.ApiErrorMapper
 import com.arthapilot.app.data.remote.ArthaApi
@@ -9,7 +10,9 @@ import com.arthapilot.app.data.remote.toDomain
 import com.arthapilot.app.domain.model.AuthTokens
 import com.arthapilot.app.domain.model.User
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,6 +28,7 @@ interface AuthRepository {
 class AuthRepositoryImpl @Inject constructor(
     private val api: ArthaApi,
     private val tokenStore: TokenStore,
+    private val database: ArthaDatabase,
 ) : AuthRepository {
 
     override val tokens: Flow<AuthTokens?> = tokenStore.tokens
@@ -66,6 +70,9 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun logout() {
+        // Wipe locally cached data before clearing tokens so no data from the
+        // previous account survives for the next one on this device.
+        withContext(Dispatchers.IO) { database.clearAllTables() }
         tokenStore.clear()
     }
 }
