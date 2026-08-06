@@ -1,5 +1,6 @@
 package com.arthapilot.app.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,12 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -43,27 +46,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.arthapilot.app.domain.model.Alert
 import com.arthapilot.app.domain.model.Transaction
-import java.util.Locale
-
-private val FILTER_CATEGORIES = listOf(
-    null,
-    "Food & Dining",
-    "Groceries",
-    "Shopping",
-    "Transport",
-    "Bills & Recurring",
-    "Entertainment",
-    "Salary",
-    "Uncategorized",
-)
-
-private val THOUSANDS_REGEX = Regex("(\\d)(?=(\\d{3})+(?!\\d))")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onUploadClick: () -> Unit,
+    onStatementsClick: () -> Unit,
     onLogout: () -> Unit,
     viewModel: TransactionsViewModel = hiltViewModel(),
 ) {
@@ -83,6 +73,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("Transactions") },
                 actions = {
+                    IconButton(onClick = onStatementsClick) {
+                        Icon(Icons.Default.History, contentDescription = "Statement history")
+                    }
                     IconButton(onClick = viewModel::refresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
@@ -101,9 +94,14 @@ fun HomeScreen(
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             CategoryFilterRow(
+                options = uiState.categoryOptions,
                 selected = uiState.categoryFilter,
                 onSelect = viewModel::setCategoryFilter,
             )
+
+            if (uiState.alerts.isNotEmpty()) {
+                AlertsSection(alerts = uiState.alerts)
+            }
 
             when {
                 uiState.isLoading && uiState.transactions.isEmpty() -> {
@@ -161,6 +159,7 @@ fun HomeScreen(
     selectedTransaction?.let { transaction ->
         CategoryCorrectionDialog(
             transaction = transaction,
+            choices = uiState.categoryOptions,
             onDismiss = { selectedTransaction = null },
             onConfirm = { category ->
                 viewModel.updateCategory(transaction.id, category)
@@ -171,17 +170,56 @@ fun HomeScreen(
 }
 
 @Composable
+private fun AlertsSection(alerts: List<Alert>) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        alerts.forEach { alert ->
+            val color = if (alert.severity == "warning") {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(color.copy(alpha = 0.08f)).padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(modifier = Modifier.width(4.dp).height(28.dp).background(color, MaterialTheme.shapes.small))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = alert.title,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = color,
+                        )
+                        Text(
+                            text = alert.message,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun CategoryFilterRow(
+    options: List<String>,
     selected: String?,
     onSelect: (String?) -> Unit,
 ) {
+    val allOptions = listOf(null as String?) + options
     LazyRow(
         modifier = Modifier.fillMaxWidth().height(56.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        items(FILTER_CATEGORIES.size) { index ->
-            val category = FILTER_CATEGORIES[index]
+        items(allOptions.size) { index ->
+            val category = allOptions[index]
             FilterChip(
                 selected = selected == category,
                 onClick = { onSelect(category) },
@@ -210,7 +248,8 @@ private fun TransactionCard(
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    text = "${transaction.date} · ${transaction.category}",
+                    text = "${transaction.date} · ${transaction.category}" +
+                        if (transaction.isRecurring) " · ↻ recurring" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -234,35 +273,10 @@ private fun amountText(transaction: Transaction): String {
     return "$sign₹${formatAmount(transaction.amount)}"
 }
 
-private fun formatAmount(amount: Double): String {
-    val rounded = String.format(Locale.US, "%.2f", amount)
-    val parts = rounded.split(".")
-    return "${parts[0].replace(THOUSANDS_REGEX, "$1,")}.${parts[1]}"
-}
-
-private val CATEGORY_CHOICES = listOf(
-    "Food & Dining",
-    "Groceries",
-    "Shopping",
-    "Transport",
-    "Bills & Recurring",
-    "Entertainment",
-    "Utilities",
-    "Health & Medical",
-    "Travel",
-    "Investments",
-    "Salary",
-    "Cash",
-    "Rent",
-    "Taxes",
-    "Fees & Charges",
-    "Transfer",
-    "Uncategorized",
-)
-
 @Composable
 private fun CategoryCorrectionDialog(
     transaction: Transaction,
+    choices: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -279,8 +293,8 @@ private fun CategoryCorrectionDialog(
                 androidx.compose.foundation.lazy.LazyColumn(
                     modifier = Modifier.height(240.dp),
                 ) {
-                    items(CATEGORY_CHOICES.size) { index ->
-                        val choice = CATEGORY_CHOICES[index]
+                    items(choices.size) { index ->
+                        val choice = choices[index]
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -2,8 +2,13 @@ package com.arthapilot.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.arthapilot.app.data.repository.BudgetRepository
+import com.arthapilot.app.data.repository.InsightsRepository
 import com.arthapilot.app.data.repository.TransactionRepository
+import com.arthapilot.app.domain.model.Alert
 import com.arthapilot.app.domain.model.ApiException
+import com.arthapilot.app.domain.model.Budget
+import com.arthapilot.app.domain.model.RecurringItem
 import com.arthapilot.app.domain.model.Transaction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -14,6 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import javax.inject.Inject
 
 data class TransactionsUiState(
@@ -26,11 +33,36 @@ data class TransactionsUiState(
     val total: Int = 0,
     val categoryFilter: String? = null,
     val hasMore: Boolean = false,
+    val categoryOptions: List<String> = FALLBACK_CATEGORIES,
+    val alerts: List<Alert> = emptyList(),
+)
+
+val FALLBACK_CATEGORIES = listOf(
+    "Food & Dining",
+    "Groceries",
+    "Transport",
+    "Utilities",
+    "Rent",
+    "Entertainment",
+    "Shopping",
+    "Health & Medical",
+    "Education",
+    "Salary",
+    "Investments",
+    "Travel",
+    "Bills & Recurring",
+    "Transfer",
+    "Cash",
+    "Taxes",
+    "Fees & Charges",
+    "Uncategorized",
 )
 
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
+    private val insightsRepository: InsightsRepository,
+    private val budgetRepository: BudgetRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionsUiState())
@@ -43,6 +75,7 @@ class TransactionsViewModel @Inject constructor(
 
     init {
         refresh()
+        loadCategoriesAndAlerts()
     }
 
     fun refresh() {
@@ -73,6 +106,30 @@ class TransactionsViewModel @Inject constructor(
                 throw e
             } catch (e: ApiException) {
                 _uiState.update { it.copy(error = e.userMessage) }
+            }
+        }
+    }
+
+    fun loadCategoriesAndAlerts() {
+        viewModelScope.launch {
+            try {
+                val categories = insightsRepository.fetchCategories()
+                _uiState.update { it.copy(categoryOptions = categories) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: ApiException) {
+                // Keep the fallback category list while offline.
+            }
+        }
+        viewModelScope.launch {
+            try {
+                val budgets = budgetRepository.fetchBudgets()
+                val recurring = insightsRepository.fetchRecurring()
+                _uiState.update { it.copy(alerts = buildAlerts(budgets, recurring, LocalDate.now())) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: ApiException) {
+                // Alerts are best-effort; the transaction list remains usable offline.
             }
         }
     }
@@ -120,3 +177,46 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 }
+
+/** Computes in-app alerts: budget overruns first, then EMIs due within a week. */
+fun buildAlerts(budgets: List<Budget>, recurring: List<RecurringItem>, today: LocalDate): List<Alert> {
+    val alerts = mutableListOf<Alert>()
+
+    for (budget in budgets.sortedByDescending { it.percentage }) {
+        if (!budget.overrun) continue
+        alerts += Alert(
+            title = "Budget exceeded",
+            message = "${budget.category}: spent ₹${formatAmount(budget.spent)} of " +
+                "₹${formatAmount(budget.monthlyLimit)} this month",
+            severity = "warning",
+        )
+    }
+
+    val dueWindow = today.plusDays(7)
+    for (item in recurring) {
+        if (item.kind != "emi") continue
+        val due = parseDate(item.nextExpectedDate) ?: continue
+        if (due in today..dueWindow) {
+            alerts += Alert(
+                title = "EMI due soon",
+                message = "${item.description}: ₹${formatAmount(item.amount)} on $due",
+                severity = "info",
+            )
+        }
+    }
+    return alerts
+}
+
+internal fun parseDate(value: String): LocalDate? = try {
+    LocalDate.parse(value)
+} catch (_: DateTimeParseException) {
+    null
+}
+
+internal fun formatAmount(amount: Double): String {
+    val rounded = String.format(java.util.Locale.US, "%.2f", amount)
+    val parts = rounded.split(".")
+    return "${parts[0].replace(THOUSANDS_REGEX, "$1,")}.${parts[1]}"
+}
+
+private val THOUSANDS_REGEX = Regex("(\\d)(?=(\\d{3})+(?!\\d))")
