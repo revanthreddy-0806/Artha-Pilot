@@ -1,5 +1,6 @@
 """Repository pattern: persistence access for the Budget aggregate."""
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.budget import Budget
@@ -26,10 +27,19 @@ class BudgetRepository:
         if budget is None:
             budget = Budget(user_id=user_id, category=category, monthly_limit=monthly_limit)
             self._db.add(budget)
+            try:
+                self._db.commit()
+            except IntegrityError:
+                # A concurrent upsert of the same key won the race; converge on it.
+                self._db.rollback()
+                budget = self.get(user_id, category)
+                if budget is None:  # pragma: no cover - defensive
+                    raise
+            self._db.refresh(budget)
         else:
             budget.monthly_limit = monthly_limit
-        self._db.commit()
-        self._db.refresh(budget)
+            self._db.commit()
+            self._db.refresh(budget)
         return budget
 
     def delete(self, user_id: int, category: str) -> bool:

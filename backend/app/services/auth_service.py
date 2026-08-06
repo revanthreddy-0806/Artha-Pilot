@@ -94,7 +94,16 @@ class AuthService:
         user = self._users.get_by_id(user_id)
         if user is None or not user.is_active:
             raise AppError("Account not found or disabled", status_code=401, error_code="invalid_refresh_token")
-        self._revoked.revoke(jti, user_id=user.id, expires_at=expires_at)
+        try:
+            self._revoked.revoke(jti, user_id=user.id, expires_at=expires_at)
+        except IntegrityError:
+            # A concurrent refresh of the same token already revoked this jti.
+            self._revoked.rollback()
+            raise AppError(
+                "Invalid or expired refresh token",
+                status_code=401,
+                error_code="invalid_refresh_token",
+            ) from None
         self._revoked.prune_expired()
         logger.info("Refreshed tokens for user id=%s", user.id)
         return self.issue_tokens(user)

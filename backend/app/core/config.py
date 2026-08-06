@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "Artha Pilot API"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
     # Database

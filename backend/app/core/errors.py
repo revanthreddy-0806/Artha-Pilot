@@ -40,10 +40,15 @@ def _error_response(status_code: int, error_code: str, message: str, details: An
 
 
 def _sanitize_validation_errors(errors: Any) -> list[dict[str, Any]]:
-    """Convert RequestValidationError.errors() into JSON-safe structures."""
+    """Convert RequestValidationError.errors() into JSON-safe structures.
+
+    The ``input`` field is dropped so request bodies (which may contain
+    credentials such as plaintext passwords) are never echoed back or logged.
+    """
     cleaned: list[dict[str, Any]] = []
     for err in errors:
         item = dict(err)
+        item.pop("input", None)
         ctx = item.get("ctx")
         if isinstance(ctx, dict):
             item["ctx"] = {k: str(v) for k, v in ctx.items()}
@@ -61,12 +66,13 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        logger.info("Validation error on %s %s: %s", request.method, request.url.path, exc.errors())
+        safe_errors = _sanitize_validation_errors(exc.errors())
+        logger.info("Validation error on %s %s: %s", request.method, request.url.path, safe_errors)
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "validation_error",
             "Request validation failed",
-            _sanitize_validation_errors(exc.errors()),
+            safe_errors,
         )
 
     @app.exception_handler(StarletteHTTPException)

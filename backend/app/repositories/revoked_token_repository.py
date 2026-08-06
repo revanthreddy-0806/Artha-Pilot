@@ -18,6 +18,9 @@ class RevokedTokenRepository:
         self._db.add(RevokedToken(jti=jti, user_id=user_id, expires_at=expires_at))
         self._db.commit()
 
+    def rollback(self) -> None:
+        self._db.rollback()
+
     def prune_expired(self) -> int:
         result = self._db.execute(
             delete(RevokedToken).where(RevokedToken.expires_at < datetime.now(timezone.utc))
