@@ -9,6 +9,7 @@ from app.core.errors import AppError
 from app.models.budget import Budget
 from app.models.transaction import Transaction
 from app.repositories.budget_repository import BudgetRepository
+from app.repositories.risk_repository import RiskRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.schemas.budget import BudgetListResponse, BudgetOut
 from app.schemas.insights import (
@@ -23,15 +24,20 @@ from app.schemas.insights import (
     RiskFactor,
     RiskProfile,
 )
+from app.schemas.risk import RiskAssessment
 from app.services.recurring_detector import TransactionRef, detect_recurring
 from app.services.risk_service import (
     RiskMetrics,
+    build_appetite_summary,
+    build_assessment_factors,
     build_factors,
     build_summary,
+    combined_risk_score,
     max_loan_amount,
     risk_band,
     safe_emi_amount,
     score_risk,
+    tolerance_band,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,6 +96,7 @@ def _expense_by_category(txns: list[Transaction]) -> dict[str, float]:
 
 class InsightsService:
     def __init__(self, db: Session) -> None:
+        self._db = db
         self._transactions = TransactionRepository(db)
         self._budgets = BudgetRepository(db)
 
@@ -216,7 +223,7 @@ class InsightsService:
         return RecurringListResponse(items=items)
 
     # ---------- Risk profile ----------
-    def risk_profile(self, user_id: int) -> RiskProfile:
+    def _risk_metrics(self, user_id: int) -> RiskMetrics:
         today = date.today()
         txns = self._transactions.all_for_user(
             user_id, start_date=_shift_first_of_month(today, 2)
@@ -243,6 +250,10 @@ class InsightsService:
             if mean > 0:
                 income_std_ratio = statistics.stdev(income_values) / mean
 
+        expense_std_ratio = None
+        if len(expense_values) >= 2 and monthly_expenses > 0:
+            expense_std_ratio = statistics.stdev(expense_values) / monthly_expenses
+
         savings_rate = ((monthly_income - monthly_expenses) / monthly_income) if monthly_income else None
         utilization = (monthly_expenses / monthly_income) if monthly_income else None
 
@@ -250,18 +261,26 @@ class InsightsService:
         emi_monthly_amount = sum(item.amount for item in recurring.items if item.kind == "emi")
         emi_load_ratio = (emi_monthly_amount / monthly_income) if monthly_income else None
 
-        metrics = RiskMetrics(
+        return RiskMetrics(
             has_activity=has_activity,
             months_of_data=months_of_data,
             monthly_income=monthly_income,
             months_with_income=months_with_income,
             income_std_ratio=income_std_ratio,
+            expense_std_ratio=expense_std_ratio,
             monthly_expenses=monthly_expenses,
             savings_rate=savings_rate,
             utilization=utilization,
             emi_load_ratio=emi_load_ratio,
             emi_monthly_amount=emi_monthly_amount,
         )
+
+    def _loan_eligibility(self, metrics: RiskMetrics) -> tuple[float, float | None]:
+        safe_emi = safe_emi_amount(metrics)
+        return safe_emi, max_loan_amount(safe_emi)
+
+    def risk_profile(self, user_id: int) -> RiskProfile:
+        metrics = self._risk_metrics(user_id)
         score = score_risk(metrics)
         band = risk_band(score)
         safe_emi = safe_emi_amount(metrics)
@@ -271,10 +290,45 @@ class InsightsService:
             band=band,
             summary=build_summary(metrics, band),
             factors=[RiskFactor(**f) for f in build_factors(metrics, score)],
-            income=round(monthly_income, 2) if monthly_income is not None else None,
-            monthly_expenses=round(monthly_expenses, 2),
-            savings_rate=round(savings_rate, 4) if savings_rate is not None else None,
-            emi_load_ratio=round(emi_load_ratio, 4) if emi_load_ratio is not None else None,
+            income=round(metrics.monthly_income, 2) if metrics.monthly_income is not None else None,
+            monthly_expenses=round(metrics.monthly_expenses, 2),
+            savings_rate=round(metrics.savings_rate, 4) if metrics.savings_rate is not None else None,
+            emi_load_ratio=round(metrics.emi_load_ratio, 4) if metrics.emi_load_ratio is not None else None,
+            safe_emi_amount=round(safe_emi, 2),
+            max_loan_amount=loan,
+            max_loan_tenure_months=60,
+        )
+
+    # ---------- Combined risk-appetite assessment (Phase 3) ----------
+    def risk_assessment(self, user_id: int) -> RiskAssessment:
+        metrics = self._risk_metrics(user_id)
+        behaviour_score = score_risk(metrics)
+
+        questionnaire = RiskRepository(self._db).get_for_user(user_id)
+        tolerance_score = questionnaire.tolerance_score if questionnaire else None
+        tolerance = tolerance_band(tolerance_score) if tolerance_score is not None else None
+
+        combined = combined_risk_score(tolerance_score, behaviour_score)
+        band = tolerance_band(combined)
+        safe_emi, loan = self._loan_eligibility(metrics)
+
+        factors = [
+            RiskFactor(**f)
+            for f in build_assessment_factors(metrics, tolerance_score, tolerance, behaviour_score)
+        ]
+        return RiskAssessment(
+            score=combined,
+            band=band,
+            summary=build_appetite_summary(combined, tolerance_score, band),
+            factors=factors,
+            tolerance_score=tolerance_score,
+            tolerance_band=tolerance,
+            behavior_score=behaviour_score,
+            questionnaire_completed=tolerance_score is not None,
+            income=round(metrics.monthly_income, 2) if metrics.monthly_income is not None else None,
+            monthly_expenses=round(metrics.monthly_expenses, 2),
+            savings_rate=round(metrics.savings_rate, 4) if metrics.savings_rate is not None else None,
+            emi_load_ratio=round(metrics.emi_load_ratio, 4) if metrics.emi_load_ratio is not None else None,
             safe_emi_amount=round(safe_emi, 2),
             max_loan_amount=loan,
             max_loan_tenure_months=60,
