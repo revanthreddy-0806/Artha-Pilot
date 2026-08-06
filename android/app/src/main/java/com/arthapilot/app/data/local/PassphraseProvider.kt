@@ -10,6 +10,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.util.Base64
@@ -32,14 +34,16 @@ class PassphraseProvider @Inject constructor(
 
     fun blockingGetOrCreate(): ByteArray = runBlocking { getOrCreate() }
 
-    private suspend fun getOrCreate(): ByteArray {
+    private val mutex = Mutex()
+
+    private suspend fun getOrCreate(): ByteArray = mutex.withLock {
         val prefs = dataStore.data.first()
         prefs[KEY_ENCRYPTED]?.let { encrypted -> return decrypt(encrypted) }
 
         val passphrase = ByteArray(32).also { SecureRandom().nextBytes(it) }
         val encrypted = encrypt(passphrase)
         dataStore.edit { it[KEY_ENCRYPTED] = encrypted }
-        return passphrase
+        passphrase
     }
 
     private fun secretKey(): SecretKey {

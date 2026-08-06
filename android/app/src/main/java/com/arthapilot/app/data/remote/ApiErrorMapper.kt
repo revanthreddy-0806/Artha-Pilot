@@ -28,7 +28,8 @@ object ApiErrorMapper {
         if (code == 401) {
             return when (errorCode) {
                 "invalid_credentials" -> ApiException.Server(message, errorCode, code)
-                "invalid_token", "missing_token", "invalid_refresh_token" -> ApiException.Unauthorized()
+                "invalid_token", "missing_token", "invalid_refresh_token", "unauthorized" ->
+                    ApiException.Unauthorized()
                 null -> ApiException.Unauthorized()
                 else -> ApiException.Server(message, errorCode, code)
             }

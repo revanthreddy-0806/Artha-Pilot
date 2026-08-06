@@ -109,7 +109,7 @@ fun StatementUploadResponseDto.toStatementEntity() = StatementEntity(
     periodEnd = periodEnd,
     parseStatus = parseStatus,
     transactionCount = transactionCount,
-    createdAt = "",
+    createdAt = java.time.LocalDateTime.now().toString(),
 )
 
 fun StatementItemDto.toDomain() = StatementInfo(

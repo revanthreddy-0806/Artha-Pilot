@@ -70,7 +70,9 @@ class TokenAuthenticator(
         return try {
             refreshClient.newCall(request).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    tokenStore.blockingClear()
+                    // Only a 401 means the refresh token itself is dead; transient
+                    // 5xx/429 failures must not log the user out.
+                    if (resp.code == 401) tokenStore.blockingClear()
                     return null
                 }
                 val tokens = resp.body.string().let {
