@@ -5,6 +5,29 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+import java.io.FileInputStream
+import java.util.Properties
+
+// Release signing + production URL are loaded from operator-supplied,
+// gitignored configuration. No secrets live in version control.
+val signingProps = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) load(FileInputStream(file))
+}
+val releaseKeystore = signingProps.getProperty("storeFile")?.takeIf { it.isNotBlank() }
+val hasReleaseKeystore = releaseKeystore?.let { rootProject.file(it).exists() } == true
+if (hasReleaseKeystore == false) {
+    logger.warn("Release signing disabled: android/keystore.properties is missing or has no valid storeFile. Release APKs will be UNSIGNED (not shippable).")
+}
+
+fun releaseApiBaseUrl(): String {
+    val fromProperty = (project.findProperty("ARTHA_PILOT_API_BASE_URL") as String?)?.takeIf { it.isNotBlank() }
+    val fromEnv = System.getenv("ARTHA_PILOT_API_BASE_URL")?.takeIf { it.isNotBlank() }
+    return fromProperty ?: fromEnv ?: "https://api.arthapilot.example.com/api/v1/"
+}
+
+val resolvedReleaseApiUrl = releaseApiBaseUrl()
+
 android {
     namespace = "com.arthapilot.app"
     compileSdk = 37
@@ -19,6 +42,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(releaseKeystore!!)
+                storePassword = signingProps.getProperty("storePassword")
+                keyAlias = signingProps.getProperty("keyAlias")
+                keyPassword = signingProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // Emulator reaches the host machine via 10.0.2.2. Override for a real device.
@@ -26,11 +60,14 @@ android {
         }
 
         release {
-            // Placeholder production API; replace at release time. HTTPS-only.
-            buildConfigField("String", "API_BASE_URL", "\"https://api.arthapilot.example.com/api/v1/\"")
+            // Production HTTPS endpoint; override via ARTHA_PILOT_API_BASE_URL.
+            buildConfigField("String", "API_BASE_URL", "\"${resolvedReleaseApiUrl}\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -46,6 +83,17 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    doLast {
+        if (resolvedReleaseApiUrl.contains("example.com")) {
+            logger.warn("Release build points at the PLACEHOLDER API URL (${resolvedReleaseApiUrl}). Set ARTHA_PILOT_API_BASE_URL before shipping.")
+        }
+        if (!resolvedReleaseApiUrl.startsWith("https://")) {
+            logger.warn("Release build API URL is not HTTPS: ${resolvedReleaseApiUrl}")
+        }
     }
 }
 

@@ -54,6 +54,7 @@ android/app/build/
 android/captures/
 android/.cxx/
 android/local.properties
+android/keystore.properties
 android/**/generated/
 *.apk
 *.aab
