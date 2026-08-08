@@ -106,11 +106,16 @@ object DatabaseModule {
     fun provideDatabase(
         @ApplicationContext context: Context,
         passphrase: ByteArray,
-    ): ArthaDatabase =
-        Room.databaseBuilder(context, ArthaDatabase::class.java, "artha_pilot.db")
+    ): ArthaDatabase {
+        // Load the bundled SQLCipher native library before any connection opens.
+        // sqlcipher-android 4.17 has no loadLibs API; JNI_OnLoad registers all
+        // natives (incl. SQLiteConnection.nativeOpen) at dlopen time.
+        System.loadLibrary("sqlcipher")
+        return Room.databaseBuilder(context, ArthaDatabase::class.java, "artha_pilot.db")
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
             .addMigrations(MIGRATION_1_2)
             .build()
+    }
 
     @Provides
     fun provideTransactionDao(db: ArthaDatabase): TransactionDao = db.transactionDao()

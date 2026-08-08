@@ -56,7 +56,8 @@ android {
     buildTypes {
         debug {
             // Emulator reaches the host machine via 10.0.2.2. Override for a real device.
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/v1/\"")
+            // Dev PC: uses `adb reverse tcp:8000 tcp:8000` so 127.0.0.1:8000 hits the host backend.
+            buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:8000/api/v1/\"")
         }
 
         release {
