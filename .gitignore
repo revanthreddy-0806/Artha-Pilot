@@ -55,6 +55,7 @@ android/captures/
 android/.cxx/
 android/local.properties
 android/keystore.properties
+android/gradle/gradle-daemon-jvm.properties
 android/**/generated/
 *.apk
 *.aab
