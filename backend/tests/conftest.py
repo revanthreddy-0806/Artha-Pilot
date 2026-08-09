@@ -70,3 +70,14 @@ def sample_pdf_bytes() -> bytes:
         make_pdf.build(path)
     with open(path, "rb") as f:
         return f.read()
+
+
+@pytest.fixture
+def sample_multiline_pdf_bytes() -> bytes:
+    from tests.fixtures import make_pdf
+
+    path = os.path.join(os.path.dirname(__file__), "fixtures", "sample_statement_multiline.pdf")
+    if not os.path.exists(path):
+        make_pdf.build_multiline(path)
+    with open(path, "rb") as f:
+        return f.read()

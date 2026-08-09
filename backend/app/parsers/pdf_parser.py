@@ -21,15 +21,19 @@ _MARKED_AMOUNT_RE = re.compile(
     r"(?<![\d,.])(\d+(?:,\d{3})*\.\d{2})\s*(DR|CR|DEBIT|CREDIT|DB|CD)\b", re.IGNORECASE
 )
 _DATE_PREFIX_RE = re.compile(
-    r"^(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4})\s+(.*)$"
+    r"^(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4})(?:\s+(.*))?$"
 )
 _NOISE_RE = re.compile(
     r"^(page|statement|account|branch|ifsc|micr|address|swift|customer|tel\b|email|"
     r"generated|period|from|date of|closing|opening|no\.?\s+of|summary|total|balance as|"
-    r"transactions|debit|credit|narration|withdrawal|deposit|continued|contd|currency|"
-    r"initial|minimum|average|details of|interest|charges|cheque|please|any time|"
-    r"this is a system|confidential|do not|atm|pos|card)", re.IGNORECASE,
+    r"narration|continued|contd|currency|initial|minimum|average|details of|cheque|"
+    r"please|any time|this is a system|confidential|do not|disclaimer|synthetic|"
+    r"fictional|for software testing)", re.IGNORECASE,
 )
+
+_TYPE_WORD_RE = re.compile(r"^(DEBIT|DR|DB|CREDIT|CR|CD)$", re.IGNORECASE)
+_DEBIT_WORD_RE = re.compile(r"\b(?:DEBIT|DR|DB)\b", re.IGNORECASE)
+_CREDIT_WORD_RE = re.compile(r"\b(?:CREDIT|CR|CD)\b", re.IGNORECASE)
 
 
 class PdfStatementParser(BaseStatementParser):
@@ -70,7 +74,20 @@ class PdfStatementParser(BaseStatementParser):
     def _extract_transactions(self, lines: list[str]) -> list[RawTransaction]:
         transactions: list[RawTransaction] = []
         prev_balance: float | None = None
+        pending_date: date | None = None
         pending_description: str | None = None
+
+        def flush() -> None:
+            nonlocal pending_date, pending_description, prev_balance
+            if pending_date is None:
+                return
+            txn = self._build_transaction(pending_date, pending_description or "", prev_balance)
+            if txn is not None:
+                transactions.append(txn)
+                if txn.balance is not None:
+                    prev_balance = txn.balance
+            pending_date = None
+            pending_description = None
 
         for line in lines:
             match = _DATE_PREFIX_RE.match(line)
@@ -78,20 +95,26 @@ class PdfStatementParser(BaseStatementParser):
                 txn_date = self.parse_date(match.group(1))
                 if txn_date is None:
                     continue
-                rest = match.group(2)
+                rest = match.group(2) or ""
                 txn = self._build_transaction(txn_date, rest, prev_balance)
                 if txn is None:
+                    flush()
+                    pending_date = txn_date
                     pending_description = rest
                     continue
+                flush()
                 transactions.append(txn)
                 if txn.balance is not None:
                     prev_balance = txn.balance
-                pending_description = None
                 continue
 
-            if pending_description is not None and not _NOISE_RE.match(line):
-                pending_description = f"{pending_description} {line}"
+            if pending_date is not None and (not _NOISE_RE.match(line) or _TYPE_WORD_RE.match(line)):
+                if pending_description:
+                    pending_description = f"{pending_description} {line}"
+                else:
+                    pending_description = line
 
+        flush()
         return transactions
 
     def _build_transaction(
@@ -123,6 +146,17 @@ class PdfStatementParser(BaseStatementParser):
             elif credit and credit > 0:
                 txn_type = TransactionType.CREDIT
                 amount = credit
+
+        elif len(amounts) >= 2:
+            debit_match = _DEBIT_WORD_RE.search(rest)
+            credit_match = _CREDIT_WORD_RE.search(rest)
+            if debit_match is not None or credit_match is not None:
+                if debit_match is not None and (credit_match is None or debit_match.start() < credit_match.start()):
+                    txn_type = TransactionType.DEBIT
+                else:
+                    txn_type = TransactionType.CREDIT
+                amount = amounts[0]
+                balance = amounts[-1]
 
         elif len(amounts) == 2 and prev_balance is not None:
             amount, balance = amounts[0], amounts[1]

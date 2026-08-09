@@ -1,6 +1,63 @@
 """Unit tests for the 3-tier categorization engine."""
+import joblib
+
+from app.ml import classifier
 from app.ml.classifier import categorize, categorize_many, normalize
 from app.ml.categories import DEFAULT_CATEGORY
+
+
+def _reset_model():
+    with classifier._LOCK:
+        classifier._model = None
+        classifier._vectorizer = None
+
+
+def test_model_cache_is_created_and_reused(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    monkeypatch.setattr(classifier, "_CACHE_DIR", str(cache_dir))
+    monkeypatch.setattr(classifier, "_CACHE_PATH", str(cache_dir / "categorizer.joblib"))
+    _reset_model()
+
+    first = categorize("biryani house order")
+    assert (cache_dir / "categorizer.joblib").exists()
+    _reset_model()
+
+    second = categorize("biryani house order")
+    assert second == first
+
+
+def test_stale_cache_is_retrained(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    monkeypatch.setattr(classifier, "_CACHE_DIR", str(cache_dir))
+    monkeypatch.setattr(classifier, "_CACHE_PATH", str(cache_dir / "categorizer.joblib"))
+    cache_dir.mkdir()
+    joblib.dump(("stale", "payload", "wrong-signature"), classifier._CACHE_PATH)
+    _reset_model()
+
+    category, confidence = categorize("biryani house booking")
+    assert category != DEFAULT_CATEGORY
+    from app.ml import classifier as clf
+
+    assert clf._model is not None
+    _, _, signature = joblib.load(clf._CACHE_PATH)
+    assert signature == clf._seed_signature()
+
+
+def test_corrupt_model_cache_recovers(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    monkeypatch.setattr(classifier, "_CACHE_DIR", str(cache_dir))
+    monkeypatch.setattr(classifier, "_CACHE_PATH", str(cache_dir / "categorizer.joblib"))
+    cache_dir.mkdir()
+    (cache_dir / "categorizer.joblib").write_bytes(b"not a valid joblib payload")
+    _reset_model()
+
+    category, confidence = categorize("biryani house booking")
+    assert category == "Food & Dining"
+    assert confidence is not None
+    from app.ml.classifier import _seed_signature
+
+    _, _, signature = joblib.load(classifier._CACHE_PATH)
+    assert signature == _seed_signature()
 
 
 def test_rule_based_categories():

@@ -82,8 +82,13 @@ storage/
 uploads/
 tmp/
 
+# ---------- ML model artifacts ----------
+*.joblib
+backend/app/ml/.model_cache/
+
 # ---------- Generated test fixtures ----------
 backend/tests/fixtures/sample_statement.pdf
+backend/tests/fixtures/sample_statement_multiline.pdf
 
 # ---------- GitHub ----------
 .github/**
