@@ -76,6 +76,22 @@ def test_longest_keyword_rule_wins():
     assert categorize("PRIME VIDEO RENEWAL")[0] == "Entertainment"
 
 
+def test_rule_conflict_resolutions():
+    """Longer specific rules must override generic ones for known conflicts."""
+    assert categorize("UBER EATS")[0] == "Food & Dining"
+    assert categorize("UBER TRIP")[0] == "Transport"
+    assert categorize("METRO CARD RECHARGE")[0] == "Transport"
+    assert categorize("FASTAG RECHARGE")[0] == "Transport"
+    assert categorize("YOUTUBE PREMIUM")[0] == "Entertainment"
+    assert categorize("HEALTH INSURANCE PREMIUM")[0] == "Health & Medical"
+    assert categorize("EDUCATION LOAN EMI")[0] == "Education"
+
+
+def test_observed_interest_credit_pattern():
+    assert categorize("INTEREST CREDIT")[0] == "Investments"
+    assert categorize("INTEREST CREDIT Credit")[0] == "Investments"
+
+
 def test_ml_prediction_on_seed_data():
     category, confidence = categorize("biryani house order")
     assert category == "Food & Dining"
