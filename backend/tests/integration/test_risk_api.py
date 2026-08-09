@@ -1,6 +1,8 @@
 """Integration tests for the risk-appetite questionnaire and assessment endpoints."""
 from datetime import date
 
+import pytest
+
 from app.domain.entities import ParseStatus, TransactionType
 from app.models.statement import Statement
 from app.models.transaction import Transaction
@@ -192,3 +194,44 @@ def test_users_are_isolated(client):
     assert profile_b["questionnaire_completed"] is False
     profile_a = client.get("/api/v1/risk/profile", headers=headers_a).json()
     assert profile_a["questionnaire_completed"] is True
+
+
+CSV_WITH_EMI = """\
+Date,Narration,Chq/Ref Number,Value Dat,Withdrawal Amt.,Deposit Amt.,Closing Balance
+01/06/2026,SALARY CREDIT,1001,01/06/2026,,100000.00,200000.00
+02/06/2026,RENT PAYMENT,1002,02/06/2026,30000.00,,170000.00
+05/06/2026,GROCERIES,1003,05/06/2026,12000.00,,158000.00
+10/06/2026,HOME LOAN EMI,1004,10/06/2026,25000.00,,133000.00
+01/07/2026,SALARY CREDIT,1006,01/07/2026,,100000.00,229000.00
+02/07/2026,RENT PAYMENT,1007,02/07/2026,30000.00,,199000.00
+05/07/2026,GROCERIES,1008,05/07/2026,12000.00,,187000.00
+10/07/2026,HOME LOAN EMI,1009,10/07/2026,25000.00,,162000.00
+"""
+
+
+def test_risk_profile_uses_real_uploaded_statement_data(client):
+    """Positive stored amounts must drive correct spending metrics end-to-end."""
+    headers, _ = _register_user(client)
+    resp = client.post(
+        "/api/v1/statements/upload",
+        headers=headers,
+        files={"file": ("statement.csv", CSV_WITH_EMI.encode(), "text/csv")},
+    )
+    assert resp.status_code == 201, resp.text
+
+    profile = client.get("/api/v1/risk/profile", headers=headers).json()
+    assert profile["income"] == 100_000
+    assert profile["monthly_expenses"] == 67_000
+    assert profile["savings_rate"] == pytest.approx(0.33, abs=0.01)
+    assert profile["emi_load_ratio"] == pytest.approx(0.25, abs=0.01)
+    assert profile["safe_emi_amount"] == 5_000
+    assert 0 <= profile["score"] <= 100
+
+    factor_values = {f["name"]: f["value"] for f in profile["factors"]}
+    assert "Savings rate" in factor_values
+    assert "EMI / loan load" in factor_values
+
+    recurring = client.get("/api/v1/insights/recurring", headers=headers).json()["items"]
+    by_description = {item["description"]: item for item in recurring}
+    assert "HOME LOAN EMI" in by_description
+    assert by_description["HOME LOAN EMI"]["kind"] == "emi"

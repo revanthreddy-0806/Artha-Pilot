@@ -40,13 +40,21 @@ EMI_DESCRIPTION_HINTS = (
 
 @dataclass(frozen=True)
 class TransactionRef:
-    """Lightweight transaction projection used as detection input."""
+    """Lightweight transaction projection used as detection input.
+
+    ``amount`` is expected to use the stored convention: positive magnitudes
+    with ``transaction_type`` carrying the direction.  When
+    ``transaction_type`` is not supplied the sign of the amount is used as a
+    fallback (positive = credit) to stay compatible with callers that pass
+    signed amounts.
+    """
 
     id: int
     date: date
     amount: float
     description: str
     category: str
+    transaction_type: str | None = None
 
 
 @dataclass
@@ -112,8 +120,10 @@ def detect_recurring(transactions: list[TransactionRef], today: date | None = No
 
     buckets: list[list[TransactionRef]] = []
     for txn in transactions:
-        if txn.amount >= 0:
+        if txn.transaction_type == "credit":
             continue  # credits are income, not spend
+        if txn.transaction_type is None and txn.amount >= 0:
+            continue  # legacy callers: positive amount means credit
         normalized = normalize_description(txn.description)
         if not normalized:
             continue
@@ -150,7 +160,7 @@ def detect_recurring(transactions: list[TransactionRef], today: date | None = No
         results.append(
             RecurringGroup(
                 description=anchor.description,
-                amount=anchor.amount,
+                amount=abs(anchor.amount),
                 category=anchor.category,
                 kind=_detect_kind(anchor.description, anchor.amount, interval_days, anchor.category),
                 interval_days=interval_days,

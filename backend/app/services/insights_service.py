@@ -73,8 +73,8 @@ def _shift_first_of_month(reference: date, months_back: int) -> date:
 
 
 def _aggregate(txns: list[Transaction]) -> tuple[float, float, int]:
-    income = sum(t.amount for t in txns if t.transaction_type == "credit")
-    expenses = sum(-t.amount for t in txns if t.transaction_type == "debit")
+    income = sum(abs(t.amount) for t in txns if t.transaction_type == "credit")
+    expenses = sum(abs(t.amount) for t in txns if t.transaction_type == "debit")
     return income, expenses, len(txns)
 
 
@@ -90,7 +90,7 @@ def _expense_by_category(txns: list[Transaction]) -> dict[str, float]:
     for txn in txns:
         if txn.transaction_type != "debit":
             continue
-        by_category[txn.category] = by_category.get(txn.category, 0.0) + -txn.amount
+        by_category[txn.category] = by_category.get(txn.category, 0.0) + abs(txn.amount)
     return by_category
 
 
@@ -200,7 +200,14 @@ class InsightsService:
     def recurring(self, user_id: int) -> RecurringListResponse:
         txns = self._transactions.all_for_user(user_id)
         refs = [
-            TransactionRef(id=t.id, date=t.date, amount=t.amount, description=t.description, category=t.category)
+            TransactionRef(
+                id=t.id,
+                date=t.date,
+                amount=t.amount,
+                description=t.description,
+                category=t.category,
+                transaction_type=t.transaction_type,
+            )
             for t in txns
         ]
         groups = detect_recurring(refs)

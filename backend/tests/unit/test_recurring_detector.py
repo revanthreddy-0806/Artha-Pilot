@@ -132,3 +132,52 @@ def test_different_amounts_are_separate_groups():
     ]
     groups = detect_recurring(txns)
     assert len(groups) == 2
+
+
+def test_positive_stored_debits_are_detected():
+    """Stored debits use positive magnitudes + transaction_type (real DB convention)."""
+    txns = [
+        TransactionRef(
+            id=1,
+            date=date(2026, 6, 10),
+            amount=25_000,
+            description="HOME LOAN EMI",
+            category="Bills & Recurring",
+            transaction_type="debit",
+        ),
+        TransactionRef(
+            id=2,
+            date=date(2026, 7, 10),
+            amount=25_000,
+            description="HOME LOAN EMI",
+            category="Bills & Recurring",
+            transaction_type="debit",
+        ),
+    ]
+    groups = detect_recurring(txns)
+    assert len(groups) == 1
+    assert groups[0].kind == "emi"
+    assert groups[0].amount == 25_000
+    assert set(groups[0].transaction_ids) == {1, 2}
+
+
+def test_positive_stored_credits_are_ignored():
+    txns = [
+        TransactionRef(
+            id=1,
+            date=date(2026, 6, 1),
+            amount=100_000,
+            description="ACME SALARY",
+            category="Salary",
+            transaction_type="credit",
+        ),
+        TransactionRef(
+            id=2,
+            date=date(2026, 7, 1),
+            amount=100_000,
+            description="ACME SALARY",
+            category="Salary",
+            transaction_type="credit",
+        ),
+    ]
+    assert detect_recurring(txns) == []

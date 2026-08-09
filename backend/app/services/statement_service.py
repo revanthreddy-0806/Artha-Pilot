@@ -106,7 +106,14 @@ class StatementService:
         """Recompute is_recurring across the user's history after an ingest."""
         txns = self._transactions.all_for_user(user_id)
         refs = [
-            TransactionRef(id=t.id, date=t.date, amount=t.amount, description=t.description, category=t.category)
+            TransactionRef(
+                id=t.id,
+                date=t.date,
+                amount=t.amount,
+                description=t.description,
+                category=t.category,
+                transaction_type=t.transaction_type,
+            )
             for t in txns
         ]
         groups = detect_recurring(refs)
