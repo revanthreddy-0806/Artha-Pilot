@@ -109,8 +109,11 @@ def test_assistant_chat_validation(client, auth_headers):
     assert resp.json()["error"]["code"] == "validation_error"
 
 
-def test_assistant_chat_503_when_llm_not_configured(client, auth_headers):
+def test_assistant_chat_503_when_llm_not_configured(client, auth_headers, monkeypatch):
     """With no LLM env vars the server must refuse politely, never fake."""
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "LLM_API_KEY", "")
     resp = client.post("/api/v1/assistant/chat", headers=auth_headers, json={"message": "hi"})
     assert resp.status_code == 503
     assert resp.json()["error"]["code"] == "llm_not_configured"
