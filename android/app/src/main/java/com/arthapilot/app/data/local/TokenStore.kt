@@ -27,7 +27,13 @@ class TokenStore(private val dataStore: DataStore<Preferences>) {
     }
 
     suspend fun clear() {
-        dataStore.edit { it.clear() }
+        // Only remove the token keys. The SQLCipher passphrase (written by
+        // PassphraseProvider into the same DataStore) must survive logout,
+        // otherwise the next launch rotates it and cannot decrypt the DB.
+        dataStore.edit { prefs ->
+            prefs.remove(KEY_ACCESS)
+            prefs.remove(KEY_REFRESH)
+        }
     }
 
     /** Blocking variants for use inside OkHttp interceptors/authenticators. */

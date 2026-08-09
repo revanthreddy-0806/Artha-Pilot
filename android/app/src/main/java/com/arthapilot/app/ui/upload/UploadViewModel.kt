@@ -1,12 +1,15 @@
 package com.arthapilot.app.ui.upload
 
+import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arthapilot.app.data.repository.StatementRepository
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.StatementUploadResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +20,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class UploadViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val statementRepository: StatementRepository,
 ) : ViewModel() {
 
@@ -27,8 +31,12 @@ class UploadViewModel @Inject constructor(
 
     fun onFileSelected(uri: Uri) {
         this.uri = uri
-        val name = uri.lastPathSegment?.substringAfterLast('/') ?: uri.toString()
-        _uiState.update { it.copy(selectedFileName = name) }
+        _uiState.update {
+            it.copy(
+                fileName = resolveFileName(queryDisplayName(uri), uri.lastPathSegment) ?: uri.toString(),
+                mimeType = context.contentResolver.getType(uri),
+            )
+        }
     }
 
     fun upload() {
@@ -37,8 +45,10 @@ class UploadViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isUploading = true, error = null) }
             try {
-                val fileName = _uiState.value.selectedFileName ?: "statement.pdf"
-                val result = statementRepository.upload(currentUri, fileName, mimeTypeFor(fileName))
+                val state = _uiState.value
+                val fileName = state.fileName ?: "statement.pdf"
+                val mimeType = resolveMimeType(fileName, state.mimeType)
+                val result = statementRepository.upload(currentUri, fileName, mimeType)
                 _uiState.update { it.copy(success = result) }
             } catch (e: CancellationException) {
                 throw e
@@ -54,9 +64,26 @@ class UploadViewModel @Inject constructor(
 
     fun onErrorDismissed() = _uiState.update { it.copy(error = null) }
 
-    private fun mimeTypeFor(fileName: String): String = when {
-        fileName.endsWith(".csv", ignoreCase = true) -> "text/csv"
-        fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
-        else -> "application/octet-stream"
-    }
+    private fun queryDisplayName(uri: Uri): String? =
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) {
+                cursor.getString(index)
+            } else {
+                null
+            }
+        }
 }
+
+internal fun mimeTypeFor(fileName: String): String? = when {
+    fileName.endsWith(".csv", ignoreCase = true) -> "text/csv"
+    fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+    else -> null
+}
+
+internal fun resolveFileName(displayName: String?, lastPathSegment: String?): String? =
+    displayName?.takeIf { it.isNotBlank() }
+        ?: lastPathSegment?.takeIf { it.isNotBlank() }?.substringAfterLast('/')
+
+internal fun resolveMimeType(fileName: String, providerMime: String?): String =
+    mimeTypeFor(fileName) ?: providerMime ?: "application/octet-stream"

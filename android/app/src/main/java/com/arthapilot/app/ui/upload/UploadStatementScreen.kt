@@ -41,7 +41,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arthapilot.app.domain.model.StatementUploadResult
 
 data class UploadUiState(
-    val selectedFileName: String? = null,
+    val fileName: String? = null,
+    val mimeType: String? = null,
     val isUploading: Boolean = false,
     val error: String? = null,
     val success: StatementUploadResult? = null,
@@ -119,12 +120,12 @@ fun UploadStatementScreen(
                     enabled = !uiState.isUploading,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(uiState.selectedFileName ?: "Choose PDF or CSV file")
+                    Text(uiState.fileName ?: "Choose PDF or CSV file")
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = viewModel::upload,
-                    enabled = uiState.selectedFileName != null && !uiState.isUploading,
+                    enabled = uiState.fileName != null && !uiState.isUploading,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Upload")
