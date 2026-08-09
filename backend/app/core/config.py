@@ -49,6 +49,20 @@ class Settings(BaseSettings):
         "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d"
     )
 
+    # Grounded AI assistant (LLM provider; keys come from the environment only).
+    # The assistant only explains verified backend data; no LLM call is made
+    # until all three values below are configured.
+    LLM_PROVIDER: str = "openai-compatible"
+    LLM_BASE_URL: str = ""  # e.g. https://api.openai.com/v1 (any OpenAI-compatible API)
+    LLM_API_KEY: str = ""  # NEVER commit a real key; set via environment / .env
+    LLM_MODEL: str = ""  # e.g. gpt-4o-mini
+    LLM_TIMEOUT_SECONDS: int = 30
+    LLM_MAX_RESPONSE_CHARS: int = 2400
+
+    @property
+    def llm_configured(self) -> bool:
+        return bool(self.LLM_BASE_URL and self.LLM_API_KEY and self.LLM_MODEL)
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() == "production"

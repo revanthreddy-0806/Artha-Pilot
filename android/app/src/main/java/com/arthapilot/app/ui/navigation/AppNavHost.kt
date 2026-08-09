@@ -3,6 +3,7 @@ package com.arthapilot.app.ui.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Repeat
@@ -29,6 +30,7 @@ import com.arthapilot.app.ui.auth.AuthState
 import com.arthapilot.app.ui.auth.AuthViewModel
 import com.arthapilot.app.ui.auth.LoginScreen
 import com.arthapilot.app.ui.auth.RegisterScreen
+import com.arthapilot.app.ui.assistant.AssistantScreen
 import com.arthapilot.app.ui.budgets.BudgetsScreen
 import com.arthapilot.app.ui.home.HomeScreen
 import com.arthapilot.app.ui.insights.InsightsScreen
@@ -47,6 +49,7 @@ private object Routes {
     const val BUDGETS = "budgets"
     const val RECURRING = "recurring"
     const val RISK = "risk"
+    const val ASSISTANT = "assistant"
     const val STATEMENTS = "statements"
     const val RECOMMENDATIONS = "recommendations"
 }
@@ -63,6 +66,7 @@ private val BOTTOM_TABS = listOf(
     BottomTab(Routes.BUDGETS, "Budgets", Icons.Filled.AccountBalanceWallet),
     BottomTab(Routes.RECURRING, "Recurring", Icons.Filled.Repeat),
     BottomTab(Routes.RISK, "Risk", Icons.Filled.Shield),
+    BottomTab(Routes.ASSISTANT, "Ask", Icons.Filled.Chat),
 )
 
 private val TAB_ROUTES = BOTTOM_TABS.map { it.route }
@@ -166,6 +170,10 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                     onBack = { navController.popBackStack() },
                     onOpenRecommendations = { navController.navigate(Routes.RECOMMENDATIONS) },
                 )
+            }
+
+            composable(Routes.ASSISTANT) {
+                AssistantScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Routes.STATEMENTS) {

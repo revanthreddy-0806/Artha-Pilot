@@ -219,6 +219,16 @@ data class WhatIfResult(
     val educationalDisclaimer: String,
 )
 
+data class AssistantReply(
+    val answer: String,
+    val disclaimer: String,
+)
+
+data class ChatTurn(
+    val role: String,
+    val content: String,
+)
+
 data class Alert(
     val title: String,
     val message: String,

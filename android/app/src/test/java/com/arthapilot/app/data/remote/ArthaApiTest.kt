@@ -323,6 +323,33 @@ class ArthaApiTest {
         assertTrue(body.contains("\"monthly_reduction\":5000.0"))
     }
 
+    @Test
+    fun `assistant chat posts snake_case body and parses reply`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"answer":"You spend 42000 this month.","grounded_context":{"profile":{"current_month_income":100000.0}},"disclaimer":"Educational only"}""",
+            ),
+        )
+        val reply = api.assistantChat(
+            com.arthapilot.app.data.remote.dto.ChatRequestDto(
+                message = "how much do I spend?",
+                history = listOf(
+                    com.arthapilot.app.data.remote.dto.ChatMessageDto("user", "hi"),
+                    com.arthapilot.app.data.remote.dto.ChatMessageDto("assistant", "hello"),
+                ),
+            ),
+        )
+        assertEquals("You spend 42000 this month.", reply.answer)
+        assertEquals("Educational only", reply.disclaimer)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/assistant/chat", recorded.path)
+        val body = recorded.body.readUtf8()
+        assertTrue(body.contains("\"message\":\"how much do I spend?\""))
+        assertTrue(body.contains("\"role\":\"user\""))
+        assertTrue(body.contains("\"history\""))
+    }
+
     private fun tokenResponse() = MockResponse().setResponseCode(200).setBody(
         """{"access_token":"access-1","refresh_token":"refresh-1","token_type":"bearer"}""",
     )

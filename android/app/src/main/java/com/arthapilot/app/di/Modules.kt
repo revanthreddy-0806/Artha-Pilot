@@ -18,6 +18,8 @@ import com.arthapilot.app.data.remote.AuthInterceptor
 import com.arthapilot.app.data.remote.TokenAuthenticator
 import com.arthapilot.app.data.repository.AuthRepository
 import com.arthapilot.app.data.repository.AuthRepositoryImpl
+import com.arthapilot.app.data.repository.AssistantRepository
+import com.arthapilot.app.data.repository.AssistantRepositoryImpl
 import com.arthapilot.app.data.repository.BudgetRepository
 import com.arthapilot.app.data.repository.BudgetRepositoryImpl
 import com.arthapilot.app.data.repository.InsightsRepository
@@ -135,6 +137,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+
+    @Binds
+    abstract fun bindAssistantRepository(impl: AssistantRepositoryImpl): AssistantRepository
 
     @Binds
     abstract fun bindTransactionRepository(impl: TransactionRepositoryImpl): TransactionRepository

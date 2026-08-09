@@ -5,6 +5,7 @@ import com.arthapilot.app.data.local.TransactionEntity
 import com.arthapilot.app.data.remote.dto.AllocationItemDto
 import com.arthapilot.app.data.remote.dto.BudgetDto
 import com.arthapilot.app.data.remote.dto.CategoryAmountDto
+import com.arthapilot.app.data.remote.dto.ChatResponseDto
 import com.arthapilot.app.data.remote.dto.InsightsSummaryDto
 import com.arthapilot.app.data.remote.dto.LoginRequestDto
 import com.arthapilot.app.data.remote.dto.MarketQuoteDto
@@ -367,6 +368,18 @@ class MappersTest {
         assertEquals(63000.0, result.simulated.monthlySavings, 0.0)
         assertEquals(60000.0, result.impact.annualisedExtraInvestable, 0.0)
         assertTrue(result.isSimulation)
+    }
+
+    @Test
+    fun `assistant reply dto maps to domain`() {
+        val dto = ChatResponseDto(
+            answer = "You spend 42000 this month.",
+            groundedContext = mapOf("profile" to mapOf("transaction_count" to 3)),
+            disclaimer = "Educational only",
+        )
+        val reply = dto.toDomain()
+        assertEquals("You spend 42000 this month.", reply.answer)
+        assertEquals("Educational only", reply.disclaimer)
     }
 
     private fun transactionDto(id: Long) = TransactionDto(

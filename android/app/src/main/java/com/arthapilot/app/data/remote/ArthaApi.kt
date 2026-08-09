@@ -6,6 +6,8 @@ import com.arthapilot.app.data.remote.dto.BudgetUpsertDto
 import com.arthapilot.app.data.remote.dto.CategoriesDto
 import com.arthapilot.app.data.remote.dto.CategoryBreakdownDto
 import com.arthapilot.app.data.remote.dto.CategoryUpdateDto
+import com.arthapilot.app.data.remote.dto.ChatRequestDto
+import com.arthapilot.app.data.remote.dto.ChatResponseDto
 import com.arthapilot.app.data.remote.dto.InsightsSummaryDto
 import com.arthapilot.app.data.remote.dto.LoginRequestDto
 import com.arthapilot.app.data.remote.dto.MonthlyTrendsDto
@@ -118,6 +120,9 @@ interface ArthaApi {
 
     @POST("recommendations/what-if")
     suspend fun postWhatIf(@Body body: WhatIfRequestDto): WhatIfResultDto
+
+    @POST("assistant/chat")
+    suspend fun assistantChat(@Body body: ChatRequestDto): ChatResponseDto
 
     companion object {
         const val REFRESH_PATH = "auth/refresh"

@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    assistant,
     auth,
     budgets,
     health,
@@ -21,5 +22,6 @@ api_router.include_router(budgets.router)
 api_router.include_router(insights.router)
 api_router.include_router(risk.router)
 api_router.include_router(recommendations.router)
+api_router.include_router(assistant.router)
 api_router.include_router(meta.router)
 api_router.include_router(health.router)

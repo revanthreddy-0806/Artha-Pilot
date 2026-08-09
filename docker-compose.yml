@@ -32,6 +32,15 @@ services:
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 15
       REFRESH_TOKEN_EXPIRE_DAYS: 7
+      # Grounded AI assistant: pass LLM_* through from the host environment.
+      # Leave unset (or empty) to keep the assistant disabled - the API then
+      # returns "llm_not_configured" instead of pretending to work.
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai-compatible}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      LLM_MAX_RESPONSE_CHARS: ${LLM_MAX_RESPONSE_CHARS:-2400}
     ports:
       - "8000:8000"
 

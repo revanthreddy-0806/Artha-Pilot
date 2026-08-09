@@ -6,6 +6,7 @@ import com.arthapilot.app.data.remote.dto.AllocationItemDto
 import com.arthapilot.app.data.remote.dto.BreakdownItemDto
 import com.arthapilot.app.data.remote.dto.BudgetDto
 import com.arthapilot.app.data.remote.dto.CategoryAmountDto
+import com.arthapilot.app.data.remote.dto.ChatResponseDto
 import com.arthapilot.app.data.remote.dto.InsightsSummaryDto
 import com.arthapilot.app.data.remote.dto.MarketQuoteDto
 import com.arthapilot.app.data.remote.dto.MonthTrendDto
@@ -26,6 +27,7 @@ import com.arthapilot.app.data.remote.dto.WhatIfBlockDto
 import com.arthapilot.app.data.remote.dto.WhatIfImpactDto
 import com.arthapilot.app.data.remote.dto.WhatIfResultDto
 import com.arthapilot.app.domain.model.AllocationItem
+import com.arthapilot.app.domain.model.AssistantReply
 import com.arthapilot.app.domain.model.AuthTokens
 import com.arthapilot.app.domain.model.Budget
 import com.arthapilot.app.domain.model.CategoryAmount
@@ -294,6 +296,11 @@ fun RecommendationDto.toDomain() = Recommendation(
     notes = notes.map { it.toDomain() },
     market = market.map { it.toDomain() },
     educationalDisclaimer = educationalDisclaimer,
+)
+
+fun ChatResponseDto.toDomain() = AssistantReply(
+    answer = answer,
+    disclaimer = disclaimer,
 )
 
 fun WhatIfBlockDto.toDomain() = WhatIfBlock(
