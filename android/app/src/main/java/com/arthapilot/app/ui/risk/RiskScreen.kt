@@ -54,6 +54,7 @@ import java.util.Locale
 @Composable
 fun RiskScreen(
     onBack: () -> Unit,
+    onOpenRecommendations: () -> Unit,
     viewModel: RiskViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -125,6 +126,14 @@ fun RiskScreen(
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                    }
+                    item {
+                        Button(
+                            onClick = onOpenRecommendations,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("View investment suggestions")
+                        }
                     }
                     item {
                         ToleranceCard(profile = profile)

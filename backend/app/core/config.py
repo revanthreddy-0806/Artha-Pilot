@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_LOGIN_PER_MINUTE: int = 60
     RATE_LIMIT_REFRESH_PER_MINUTE: int = 60
 
+    # Market reference data (daily refresh, not real-time)
+    MARKET_DATA_SYMBOLS: str = "^NSEI:NIFTY 50,GC=F:Gold (COMEX)"
+    MARKET_DATA_REFRESH_HOURS: int = 24
+    MARKET_DATA_TIMEOUT_SECONDS: int = 10
+    MARKET_DATA_URL_TEMPLATE: str = (
+        "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d"
+    )
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() == "production"

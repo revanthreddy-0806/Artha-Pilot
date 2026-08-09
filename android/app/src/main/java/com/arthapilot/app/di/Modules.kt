@@ -22,6 +22,8 @@ import com.arthapilot.app.data.repository.BudgetRepository
 import com.arthapilot.app.data.repository.BudgetRepositoryImpl
 import com.arthapilot.app.data.repository.InsightsRepository
 import com.arthapilot.app.data.repository.InsightsRepositoryImpl
+import com.arthapilot.app.data.repository.RecommendationRepository
+import com.arthapilot.app.data.repository.RecommendationRepositoryImpl
 import com.arthapilot.app.data.repository.StatementRepository
 import com.arthapilot.app.data.repository.StatementRepositoryImpl
 import com.arthapilot.app.data.repository.TransactionRepository
@@ -145,4 +147,7 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindBudgetRepository(impl: BudgetRepositoryImpl): BudgetRepository
+
+    @Binds
+    abstract fun bindRecommendationRepository(impl: RecommendationRepositoryImpl): RecommendationRepository
 }

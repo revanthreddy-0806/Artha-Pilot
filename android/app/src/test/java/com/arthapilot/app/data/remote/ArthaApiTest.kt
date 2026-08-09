@@ -284,6 +284,45 @@ class ArthaApiTest {
         assertTrue(recorded.body.readUtf8().contains("\"horizon\":\"under-1y\""))
     }
 
+    @Test
+    fun `recommendations parse allocation and market quotes`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"status":"ok","risk_score":75,"risk_band":"Aggressive","tolerance_score":80,"behavior_score":70,"insufficient_reason":null,"context":{"months_used":2,"monthly_income":100000.0,"monthly_expenses":42000.0,"savings_rate":0.58,"investable_monthly":58000.0},"allocation":[{"asset_class":"equity","label":"Equity","percentage":60,"rationale":"Growth"},{"asset_class":"debt","label":"Debt","percentage":25,"rationale":"Stability"},{"asset_class":"gold","label":"Gold","percentage":15,"rationale":"Hedge"}],"allocation_summary":"split","notes":[{"kind":"info","text":"No EMI."}],"market":[{"symbol":"^NSEI","name":"NIFTY 50","price":23600.0,"change_pct":0.42,"as_of":"2026-08-09T12:00:00Z","source":"Yahoo","status":"live"}],"educational_disclaimer":"Educational only"}""",
+            ),
+        )
+        val recommendation = api.getRecommendations()
+        assertEquals("ok", recommendation.status)
+        assertEquals(75, recommendation.riskScore)
+        assertEquals(3, recommendation.allocation.size)
+        assertEquals(60, recommendation.allocation[0].percentage)
+        assertEquals(58000.0, recommendation.context!!.investableMonthly, 0.0)
+        assertEquals(23600.0, recommendation.market[0].price, 0.0)
+        assertEquals(75, recommendation.riskScore)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/recommendations", recorded.path)
+    }
+
+    @Test
+    fun `what if posts snake_case body and parses result`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"category":"Dining","monthly_reduction":5000.0,"months_used":2,"current_monthly_spend":12000.0,"monthly_income":100000.0,"original":{"monthly_expenses":42000.0,"monthly_savings":58000.0,"savings_rate":0.58},"simulated":{"monthly_expenses":37000.0,"monthly_savings":63000.0,"savings_rate":0.63},"impact":{"monthly_expense_reduction":5000.0,"additional_monthly_investable":5000.0,"annualised_extra_investable":60000.0},"narrative":"Savings rise.","is_simulation":true,"educational_disclaimer":"Educational only"}""",
+            ),
+        )
+        val result = api.postWhatIf(com.arthapilot.app.data.remote.dto.WhatIfRequestDto("Dining", 5000.0))
+        assertEquals(63000.0, result.simulated.monthlySavings, 0.0)
+        assertEquals(true, result.isSimulation)
+        assertEquals(60000.0, result.impact.annualisedExtraInvestable, 0.0)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/v1/recommendations/what-if", recorded.path)
+        val body = recorded.body.readUtf8()
+        assertTrue(body.contains("\"category\":\"Dining\""))
+        assertTrue(body.contains("\"monthly_reduction\":5000.0"))
+    }
+
     private fun tokenResponse() = MockResponse().setResponseCode(200).setBody(
         """{"access_token":"access-1","refresh_token":"refresh-1","token_type":"bearer"}""",
     )

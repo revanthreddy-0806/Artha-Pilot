@@ -2,11 +2,16 @@ package com.arthapilot.app.data.remote
 
 import com.arthapilot.app.data.local.StatementEntity
 import com.arthapilot.app.data.local.TransactionEntity
+import com.arthapilot.app.data.remote.dto.AllocationItemDto
 import com.arthapilot.app.data.remote.dto.BudgetDto
 import com.arthapilot.app.data.remote.dto.CategoryAmountDto
 import com.arthapilot.app.data.remote.dto.InsightsSummaryDto
 import com.arthapilot.app.data.remote.dto.LoginRequestDto
+import com.arthapilot.app.data.remote.dto.MarketQuoteDto
 import com.arthapilot.app.data.remote.dto.MonthTrendDto
+import com.arthapilot.app.data.remote.dto.RecommendationContextDto
+import com.arthapilot.app.data.remote.dto.RecommendationDto
+import com.arthapilot.app.data.remote.dto.RecommendationNoteDto
 import com.arthapilot.app.data.remote.dto.RecurringItemDto
 import com.arthapilot.app.data.remote.dto.RiskFactorDto
 import com.arthapilot.app.data.remote.dto.RiskProfileDto
@@ -19,6 +24,9 @@ import com.arthapilot.app.data.remote.dto.TokenResponseDto
 import com.arthapilot.app.data.remote.dto.TransactionDto
 import com.arthapilot.app.data.remote.dto.TransactionPageDto
 import com.arthapilot.app.data.remote.dto.UserDto
+import com.arthapilot.app.data.remote.dto.WhatIfBlockDto
+import com.arthapilot.app.data.remote.dto.WhatIfImpactDto
+import com.arthapilot.app.data.remote.dto.WhatIfResultDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -274,6 +282,91 @@ class MappersTest {
         assertEquals("horizon", question.id)
         assertEquals(2, question.options.size)
         assertEquals("Within 1 year", question.options[0].label)
+    }
+
+    @Test
+    fun `recommendation dto maps to domain`() {
+        val dto = RecommendationDto(
+            status = "ok",
+            riskScore = 75,
+            riskBand = "Aggressive",
+            toleranceScore = 80,
+            behaviorScore = 70,
+            insufficientReason = null,
+            context = RecommendationContextDto(
+                monthsUsed = 2,
+                monthlyIncome = 100000.0,
+                monthlyExpenses = 42000.0,
+                savingsRate = 0.58,
+                investableMonthly = 58000.0,
+            ),
+            allocation = listOf(
+                AllocationItemDto("equity", "Equity", 60, "Growth"),
+                AllocationItemDto("debt", "Debt", 25, "Stability"),
+                AllocationItemDto("gold", "Gold", 15, "Hedge"),
+            ),
+            allocationSummary = "split",
+            notes = listOf(RecommendationNoteDto("caution", "Build an emergency fund.")),
+            market = listOf(
+                MarketQuoteDto("^NSEI", "NIFTY 50", 23600.0, 0.42, "2026-08-09T12:00:00Z", "Yahoo", "live"),
+            ),
+            educationalDisclaimer = "Educational only",
+        )
+        val recommendation = dto.toDomain()
+        assertEquals("ok", recommendation.status)
+        assertEquals(75, recommendation.riskScore)
+        assertEquals("Aggressive", recommendation.riskBand)
+        assertEquals(3, recommendation.allocation.size)
+        assertEquals(60, recommendation.allocation[0].percentage)
+        assertEquals("Build an emergency fund.", recommendation.notes[0].text)
+        assertEquals(23600.0, recommendation.market[0].price, 0.0)
+        assertEquals("live", recommendation.market[0].status)
+        assertEquals(58000.0, recommendation.context!!.investableMonthly, 0.0)
+    }
+
+    @Test
+    fun `insufficient recommendation maps with null context`() {
+        val dto = RecommendationDto(
+            status = "insufficient",
+            riskScore = 0,
+            riskBand = "Conservative",
+            toleranceScore = null,
+            behaviorScore = 0,
+            insufficientReason = "No transactions uploaded yet.",
+            context = null,
+            allocation = emptyList(),
+            allocationSummary = null,
+            notes = emptyList(),
+            market = emptyList(),
+            educationalDisclaimer = "Educational only",
+        )
+        val recommendation = dto.toDomain()
+        assertEquals("insufficient", recommendation.status)
+        assertNull(recommendation.context)
+        assertTrue(recommendation.allocation.isEmpty())
+        assertEquals("No transactions uploaded yet.", recommendation.insufficientReason)
+    }
+
+    @Test
+    fun `what if result dto maps to domain`() {
+        val dto = WhatIfResultDto(
+            category = "Dining",
+            monthlyReduction = 5000.0,
+            monthsUsed = 2,
+            currentMonthlySpend = 12000.0,
+            monthlyIncome = 100000.0,
+            original = WhatIfBlockDto(42000.0, 58000.0, 0.58),
+            simulated = WhatIfBlockDto(37000.0, 63000.0, 0.63),
+            impact = WhatIfImpactDto(5000.0, 5000.0, 60000.0),
+            narrative = "Savings rise.",
+            isSimulation = true,
+            educationalDisclaimer = "Educational only",
+        )
+        val result = dto.toDomain()
+        assertEquals("Dining", result.category)
+        assertEquals(63000.0, result.simulated.monthlySavings, 0.0)
+        assertEquals(60000.0, result.impact.annualisedExtraInvestable, 0.0)
+        assertTrue(result.isSimulation)
     }
 
     private fun transactionDto(id: Long) = TransactionDto(

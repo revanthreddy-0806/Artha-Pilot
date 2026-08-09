@@ -5,6 +5,7 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.revoked_token import RevokedToken
 from app.models.budget import Budget
 from app.models.risk_questionnaire import RiskQuestionnaire
+from app.models.market_data import MarketDataSnapshot
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "RevokedToken",
     "Budget",
     "RiskQuestionnaire",
+    "MarketDataSnapshot",
 ]

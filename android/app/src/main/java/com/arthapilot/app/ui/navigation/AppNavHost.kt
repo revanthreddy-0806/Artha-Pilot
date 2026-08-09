@@ -33,6 +33,7 @@ import com.arthapilot.app.ui.budgets.BudgetsScreen
 import com.arthapilot.app.ui.home.HomeScreen
 import com.arthapilot.app.ui.insights.InsightsScreen
 import com.arthapilot.app.ui.recurring.RecurringScreen
+import com.arthapilot.app.ui.recommendations.RecommendationScreen
 import com.arthapilot.app.ui.risk.RiskScreen
 import com.arthapilot.app.ui.statements.StatementsScreen
 import com.arthapilot.app.ui.upload.UploadStatementScreen
@@ -47,6 +48,7 @@ private object Routes {
     const val RECURRING = "recurring"
     const val RISK = "risk"
     const val STATEMENTS = "statements"
+    const val RECOMMENDATIONS = "recommendations"
 }
 
 private data class BottomTab(
@@ -160,11 +162,18 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
             }
 
             composable(Routes.RISK) {
-                RiskScreen(onBack = { navController.popBackStack() })
+                RiskScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenRecommendations = { navController.navigate(Routes.RECOMMENDATIONS) },
+                )
             }
 
             composable(Routes.STATEMENTS) {
                 StatementsScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.RECOMMENDATIONS) {
+                RecommendationScreen(onBack = { navController.popBackStack() })
             }
         }
     }

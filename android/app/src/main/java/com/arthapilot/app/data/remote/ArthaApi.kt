@@ -9,6 +9,7 @@ import com.arthapilot.app.data.remote.dto.CategoryUpdateDto
 import com.arthapilot.app.data.remote.dto.InsightsSummaryDto
 import com.arthapilot.app.data.remote.dto.LoginRequestDto
 import com.arthapilot.app.data.remote.dto.MonthlyTrendsDto
+import com.arthapilot.app.data.remote.dto.RecommendationDto
 import com.arthapilot.app.data.remote.dto.RecurringListDto
 import com.arthapilot.app.data.remote.dto.RefreshRequestDto
 import com.arthapilot.app.data.remote.dto.RegisterRequestDto
@@ -22,6 +23,8 @@ import com.arthapilot.app.data.remote.dto.TokenResponseDto
 import com.arthapilot.app.data.remote.dto.TransactionPageDto
 import com.arthapilot.app.data.remote.dto.TransactionDto
 import com.arthapilot.app.data.remote.dto.UserDto
+import com.arthapilot.app.data.remote.dto.WhatIfRequestDto
+import com.arthapilot.app.data.remote.dto.WhatIfResultDto
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -109,6 +112,12 @@ interface ArthaApi {
 
     @GET("risk/profile")
     suspend fun getRiskProfile(): RiskProfileDto
+
+    @GET("recommendations")
+    suspend fun getRecommendations(): RecommendationDto
+
+    @POST("recommendations/what-if")
+    suspend fun postWhatIf(@Body body: WhatIfRequestDto): WhatIfResultDto
 
     companion object {
         const val REFRESH_PATH = "auth/refresh"

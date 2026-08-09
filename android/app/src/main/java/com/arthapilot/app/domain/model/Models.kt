@@ -148,6 +148,77 @@ data class RiskQuestion(
     val options: List<RiskQuestionOption>,
 )
 
+data class AllocationItem(
+    val assetClass: String,
+    val label: String,
+    val percentage: Int,
+    val rationale: String,
+)
+
+data class MarketQuote(
+    val symbol: String,
+    val name: String,
+    val price: Double,
+    val changePct: Double?,
+    val asOf: String,
+    val source: String,
+    val status: String, // "live" | "cached" | "unavailable"
+)
+
+data class RecommendationContext(
+    val monthsUsed: Int,
+    val monthlyIncome: Double,
+    val monthlyExpenses: Double,
+    val savingsRate: Double?,
+    val investableMonthly: Double,
+)
+
+data class RecommendationNote(
+    val kind: String, // "caution" | "info"
+    val text: String,
+)
+
+data class Recommendation(
+    val status: String, // "ok" | "insufficient"
+    val riskScore: Int,
+    val riskBand: String,
+    val toleranceScore: Int?,
+    val behaviorScore: Int,
+    val insufficientReason: String?,
+    val context: RecommendationContext?,
+    val allocation: List<AllocationItem>,
+    val allocationSummary: String?,
+    val notes: List<RecommendationNote>,
+    val market: List<MarketQuote>,
+    val educationalDisclaimer: String,
+)
+
+data class WhatIfBlock(
+    val monthlyExpenses: Double,
+    val monthlySavings: Double,
+    val savingsRate: Double?,
+)
+
+data class WhatIfImpact(
+    val monthlyExpenseReduction: Double,
+    val additionalMonthlyInvestable: Double,
+    val annualisedExtraInvestable: Double,
+)
+
+data class WhatIfResult(
+    val category: String,
+    val monthlyReduction: Double,
+    val monthsUsed: Int,
+    val currentMonthlySpend: Double,
+    val monthlyIncome: Double,
+    val original: WhatIfBlock,
+    val simulated: WhatIfBlock,
+    val impact: WhatIfImpact,
+    val narrative: String,
+    val isSimulation: Boolean,
+    val educationalDisclaimer: String,
+)
+
 data class Alert(
     val title: String,
     val message: String,
