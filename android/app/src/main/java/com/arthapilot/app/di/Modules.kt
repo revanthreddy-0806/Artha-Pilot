@@ -63,7 +63,7 @@ object NetworkModule {
             .authenticator(TokenAuthenticator(tokenStore, BuildConfig.API_BASE_URL))
             .addInterceptor(logging)
             .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
             .build()
     }
 

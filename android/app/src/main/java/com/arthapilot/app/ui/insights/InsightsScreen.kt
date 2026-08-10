@@ -258,7 +258,7 @@ private fun TrendBarChart(trends: List<MonthTrend>) {
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = trend.month.takeLast(2).let { "$it/" + trend.month.take(2) },
+                    text = trendMonthLabel(trend.month),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -300,4 +300,9 @@ private fun CategoryBar(item: CategoryBreakdownItem) {
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+internal fun trendMonthLabel(month: String): String {
+    val parts = month.split("-")
+    return if (parts.size == 2) parts[1] + "/" + parts[0].takeLast(2) else month
 }
