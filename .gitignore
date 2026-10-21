@@ -91,5 +91,8 @@ backend/tests/fixtures/sample_statement.pdf
 backend/tests/fixtures/sample_statement_multiline.pdf
 
 # ---------- GitHub ----------
-.github/**
+# Ignore local GitHub config but track CI workflows. The workflows directory
+# must be re-included before its contents, otherwise the negation cannot apply.
+.github/*
+!.github/workflows/
 !.github/workflows/**
