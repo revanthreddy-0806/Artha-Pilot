@@ -43,6 +43,40 @@ def _insert_transactions(db_session, user_id: int, rows: list[tuple[int, int, fl
     db_session.commit()
 
 
+def _shift_month(offset: int) -> tuple[int, int]:
+    """Return the (year, month) that is ``offset`` months from the current month."""
+    today = date.today()
+    index = today.year * 12 + (today.month - 1) + offset
+    return index // 12, index % 12 + 1
+
+
+def _insert_relative_transactions(db_session, user_id: int, rows: list[tuple[int, int, float, str, str, str]]):
+    """Like ``_insert_transactions`` but the month column is a month offset (0 = current)."""
+    statement = Statement(
+        user_id=user_id,
+        filename="insights.csv",
+        file_type="csv",
+        parse_status=ParseStatus.PROCESSED,
+        transaction_count=len(rows),
+    )
+    db_session.add(statement)
+    db_session.flush()
+    for day, month_offset, amount, description, txn_type, category in rows:
+        year, month = _shift_month(month_offset)
+        db_session.add(
+            Transaction(
+                statement_id=statement.id,
+                user_id=user_id,
+                date=date(year, month, day),
+                description=description,
+                amount=amount,
+                transaction_type=TransactionType(txn_type),
+                category=category,
+            )
+        )
+    db_session.commit()
+
+
 def test_summary_computes_monthly_totals_and_top_categories(client, db_session):
     headers, user_id = _register_user(client)
     _insert_transactions(
@@ -81,16 +115,16 @@ def test_summary_requires_auth(client):
 
 def test_monthly_trends_covers_requested_months(client, db_session):
     headers, user_id = _register_user(client)
-    _insert_transactions(
+    _insert_relative_transactions(
         db_session,
         user_id,
         [
-            (1, 5, 90_000, "ACME SALARY", "credit", "Salary"),
-            (2, 5, -30_000, "RENT PAYMENT", "debit", "Rent"),
-            (1, 6, 95_000, "ACME SALARY", "credit", "Salary"),
-            (2, 6, -30_000, "RENT PAYMENT", "debit", "Rent"),
-            (1, 7, 100_000, "ACME SALARY", "credit", "Salary"),
-            (2, 7, -30_000, "RENT PAYMENT", "debit", "Rent"),
+            (1, -3, 90_000, "ACME SALARY", "credit", "Salary"),
+            (2, -3, -30_000, "RENT PAYMENT", "debit", "Rent"),
+            (1, -2, 95_000, "ACME SALARY", "credit", "Salary"),
+            (2, -2, -30_000, "RENT PAYMENT", "debit", "Rent"),
+            (1, -1, 100_000, "ACME SALARY", "credit", "Salary"),
+            (2, -1, -30_000, "RENT PAYMENT", "debit", "Rent"),
         ],
     )
     resp = client.get("/api/v1/insights/monthly-trends?months=4", headers=headers)
@@ -99,10 +133,11 @@ def test_monthly_trends_covers_requested_months(client, db_session):
     assert len(body["months"]) == 4
     labels = [m["month"] for m in body["months"]]
     assert labels == sorted(labels)
-    may = next(m for m in body["months"] if m["month"] == "2026-05")
-    assert may["income"] == 90_000
-    assert may["expenses"] == 30_000
-    assert may["savings"] == 60_000
+    year, month = _shift_month(-3)
+    earliest = next(m for m in body["months"] if m["month"] == f"{year:04d}-{month:02d}")
+    assert earliest["income"] == 90_000
+    assert earliest["expenses"] == 30_000
+    assert earliest["savings"] == 60_000
 
 
 def test_category_breakdown_sorted_with_counts(client, db_session):
@@ -158,13 +193,13 @@ def test_recurring_detection_endpoint(client, db_session):
 
 def test_risk_profile_healthy_user(client, db_session):
     headers, user_id = _register_user(client)
-    _insert_transactions(
+    _insert_relative_transactions(
         db_session,
         user_id,
         [
-            (1, 7, 100_000, "ACME SALARY", "credit", "Salary"),
-            (2, 7, -25_000, "RENT PAYMENT", "debit", "Rent"),
-            (3, 7, -15_000, "GROCERIES", "debit", "Groceries"),
+            (1, -1, 100_000, "ACME SALARY", "credit", "Salary"),
+            (2, -1, -25_000, "RENT PAYMENT", "debit", "Rent"),
+            (3, -1, -15_000, "GROCERIES", "debit", "Groceries"),
         ],
     )
     resp = client.get("/api/v1/insights/risk-profile", headers=headers)

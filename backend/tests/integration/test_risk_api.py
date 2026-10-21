@@ -26,7 +26,15 @@ def _complete_answers(questions: list[dict], option_index: int = 0) -> dict[str,
     }
 
 
+def _shift_month(offset: int) -> tuple[int, int]:
+    """Return the (year, month) that is ``offset`` months from the current month."""
+    today = date.today()
+    index = today.year * 12 + (today.month - 1) + offset
+    return index // 12, index % 12 + 1
+
+
 def _insert_transactions(db_session, user_id: int, rows: list[tuple[int, int, float, str, str, str]]):
+    """Insert rows as (day, month_offset, amount, description, type, category); 0 = current month."""
     statement = Statement(
         user_id=user_id,
         filename="risk.csv",
@@ -36,12 +44,13 @@ def _insert_transactions(db_session, user_id: int, rows: list[tuple[int, int, fl
     )
     db_session.add(statement)
     db_session.flush()
-    for day, month, amount, description, txn_type, category in rows:
+    for day, month_offset, amount, description, txn_type, category in rows:
+        year, month = _shift_month(month_offset)
         db_session.add(
             Transaction(
                 statement_id=statement.id,
                 user_id=user_id,
-                date=date(2026, month, day),
+                date=date(year, month, day),
                 description=description,
                 amount=amount,
                 transaction_type=TransactionType(txn_type),
@@ -117,12 +126,12 @@ def test_submit_aggressive_answers_raise_score_with_good_behaviour(client, db_se
         db_session,
         user_id,
         [
-            (1, 7, 100_000, "ACME SALARY", "credit", "Salary"),
-            (2, 8, 100_000, "ACME SALARY", "credit", "Salary"),
-            (1, 7, -30_000, "RENT PAYMENT", "debit", "Rent"),
-            (2, 8, -30_000, "RENT PAYMENT", "debit", "Rent"),
-            (5, 7, -10_000, "GROCERIES", "debit", "Groceries"),
-            (5, 8, -10_000, "GROCERIES", "debit", "Groceries"),
+            (1, -2, 100_000, "ACME SALARY", "credit", "Salary"),
+            (2, -1, 100_000, "ACME SALARY", "credit", "Salary"),
+            (1, -2, -30_000, "RENT PAYMENT", "debit", "Rent"),
+            (2, -1, -30_000, "RENT PAYMENT", "debit", "Rent"),
+            (5, -2, -10_000, "GROCERIES", "debit", "Groceries"),
+            (5, -1, -10_000, "GROCERIES", "debit", "Groceries"),
         ],
     )
     questions = client.get("/api/v1/risk/questions").json()["questions"]
@@ -196,16 +205,23 @@ def test_users_are_isolated(client):
     assert profile_a["questionnaire_completed"] is True
 
 
-CSV_WITH_EMI = """\
+def _statement_csv() -> str:
+    """Two consecutive months of recent activity, relative to the current date."""
+
+    def d(month_offset: int, day: int) -> str:
+        year, month = _shift_month(month_offset)
+        return f"{day:02d}/{month:02d}/{year:04d}"
+
+    return f"""\
 Date,Narration,Chq/Ref Number,Value Dat,Withdrawal Amt.,Deposit Amt.,Closing Balance
-01/06/2026,SALARY CREDIT,1001,01/06/2026,,100000.00,200000.00
-02/06/2026,RENT PAYMENT,1002,02/06/2026,30000.00,,170000.00
-05/06/2026,GROCERIES,1003,05/06/2026,12000.00,,158000.00
-10/06/2026,HOME LOAN EMI,1004,10/06/2026,25000.00,,133000.00
-01/07/2026,SALARY CREDIT,1006,01/07/2026,,100000.00,229000.00
-02/07/2026,RENT PAYMENT,1007,02/07/2026,30000.00,,199000.00
-05/07/2026,GROCERIES,1008,05/07/2026,12000.00,,187000.00
-10/07/2026,HOME LOAN EMI,1009,10/07/2026,25000.00,,162000.00
+{d(-2, 1)},SALARY CREDIT,1001,{d(-2, 1)},,100000.00,200000.00
+{d(-2, 2)},RENT PAYMENT,1002,{d(-2, 2)},30000.00,,170000.00
+{d(-2, 5)},GROCERIES,1003,{d(-2, 5)},12000.00,,158000.00
+{d(-2, 10)},HOME LOAN EMI,1004,{d(-2, 10)},25000.00,,133000.00
+{d(-1, 1)},SALARY CREDIT,1006,{d(-1, 1)},,100000.00,229000.00
+{d(-1, 2)},RENT PAYMENT,1007,{d(-1, 2)},30000.00,,199000.00
+{d(-1, 5)},GROCERIES,1008,{d(-1, 5)},12000.00,,187000.00
+{d(-1, 10)},HOME LOAN EMI,1009,{d(-1, 10)},25000.00,,162000.00
 """
 
 
@@ -215,7 +231,7 @@ def test_risk_profile_uses_real_uploaded_statement_data(client):
     resp = client.post(
         "/api/v1/statements/upload",
         headers=headers,
-        files={"file": ("statement.csv", CSV_WITH_EMI.encode(), "text/csv")},
+        files={"file": ("statement.csv", _statement_csv().encode(), "text/csv")},
     )
     assert resp.status_code == 201, resp.text
 

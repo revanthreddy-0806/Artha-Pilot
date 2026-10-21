@@ -45,7 +45,15 @@ def _register_user(client, email) -> tuple[dict[str, str], int]:
     return headers, me["id"]
 
 
+def _shift_month(offset: int) -> tuple[int, int]:
+    """Return the (year, month) that is ``offset`` months from the current month."""
+    today = date.today()
+    index = today.year * 12 + (today.month - 1) + offset
+    return index // 12, index % 12 + 1
+
+
 def _insert_transactions(db_session, user_id: int, rows):
+    """Insert rows as (day, month_offset, amount, description, type, category); 0 = current month."""
     statement = Statement(
         user_id=user_id,
         filename="rec.csv",
@@ -55,12 +63,13 @@ def _insert_transactions(db_session, user_id: int, rows):
     )
     db_session.add(statement)
     db_session.flush()
-    for day, month, amount, description, txn_type, category in rows:
+    for day, month_offset, amount, description, txn_type, category in rows:
+        year, month = _shift_month(month_offset)
         db_session.add(
             Transaction(
                 statement_id=statement.id,
                 user_id=user_id,
-                date=date(2026, month, day),
+                date=date(year, month, day),
                 description=description,
                 amount=amount,
                 transaction_type=TransactionType(txn_type),
@@ -128,8 +137,8 @@ def test_recommendations_band_is_deterministic(client, db_session):
         db_session,
         user_id,
         [
-            (1, 7, 100_000, "ACME SALARY", "credit", "Salary"),
-            (2, 7, -30_000, "RENT", "debit", "Rent"),
+            (1, -1, 100_000, "ACME SALARY", "credit", "Salary"),
+            (2, -1, -30_000, "RENT", "debit", "Rent"),
         ],
     )
     first = client.get("/api/v1/recommendations", headers=headers).json()
@@ -145,9 +154,9 @@ def test_what_if_reduces_expenses_only_in_output(client, db_session):
         db_session,
         user_id,
         [
-            (1, 7, 100_000, "ACME SALARY", "credit", "Salary"),
-            (2, 7, -30_000, "RENT", "debit", "Rent"),
-            (5, 7, -12_000, "ZOMATO", "debit", "Dining"),
+            (1, -1, 100_000, "ACME SALARY", "credit", "Salary"),
+            (2, -1, -30_000, "RENT", "debit", "Rent"),
+            (5, -1, -12_000, "ZOMATO", "debit", "Dining"),
         ],
     )
     resp = client.post(
@@ -184,8 +193,8 @@ def test_what_if_rejects_reduction_beyond_spend(client, db_session):
         db_session,
         user_id,
         [
-            (1, 7, 100_000, "SALARY", "credit", "Salary"),
-            (2, 7, -10_000, "ZOMATO", "debit", "Dining"),
+            (1, -1, 100_000, "SALARY", "credit", "Salary"),
+            (2, -1, -10_000, "ZOMATO", "debit", "Dining"),
         ],
     )
     resp = client.post(
@@ -214,8 +223,8 @@ def test_users_are_isolated(client, db_session):
         db_session,
         user_a,
         [
-            (1, 7, 100_000, "ACME SALARY", "credit", "Salary"),
-            (2, 7, -30_000, "RENT", "debit", "Rent"),
+            (1, -1, 100_000, "ACME SALARY", "credit", "Salary"),
+            (2, -1, -30_000, "RENT", "debit", "Rent"),
         ],
     )
     resp_a = client.get("/api/v1/recommendations", headers=headers_a)
