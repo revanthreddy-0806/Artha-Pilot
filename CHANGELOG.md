@@ -2,6 +2,37 @@
 
 All notable changes to Artha Pilot are documented here, per release.
 
+## [Unreleased] — 2026-10-21
+
+### Tests
+- Made the insights-trends, risk-profile and what-if integration fixtures date-relative. They hardcoded May–August 2026 transaction dates while the services use rolling 3-month windows, so four tests failed once the calendar moved past the fixtures. Assertions are unchanged; the suite is now stable over time.
+- Verified baseline on this date: **239 backend tests passed**; **119 Android unit tests passed** (18 suites).
+
+### CI
+- Added `.github/workflows/ci.yml`: Python 3.12 backend test job plus a JDK 21 Android job that runs unit tests, `assembleDebug` and `lintDebug` against SDK 37.0 / build-tools 37.0.0. Triggers on pushes to `main`/`develop`, pull requests and manual dispatch; no secrets required.
+
+### Documentation
+- Updated `README.md` for the implemented Phase 4 risk/recommendation/assistant features, assistant configuration, testing commands, the SQLite-vs-PostgreSQL verification gap, CI, and an explicit implemented-vs-backlog status.
+
+## [Phase 4] — 2026-08-10
+
+Phase 4 is committed on `main` but is **untagged**; the Android `versionName` remains `3.0.0`. No Phase 4 release-readiness audit has been performed.
+
+### Backend
+- **Explainable risk engine:** completed the risk-tolerance questionnaire (`GET /risk/questions`, `PUT /risk/questionnaire`, `GET /risk/profile`), persistence in migration `0004_risk_questionnaire`, and a combined 0–100 assessment (50% questionnaire tolerance + 50% spending behaviour) with safe-EMI and loan-capacity estimates.
+- **Recommendations:** `GET /recommendations` builds a three-month income/expense context and returns a deterministic equity/debt/gold allocation for the risk band, with per-asset rationale, caution/info notes and an educational disclaimer. `POST /recommendations/what-if` simulates a category expense reduction without mutating stored data; invalid scenarios return `422 invalid_scenario`.
+- **Market reference data:** daily (not real-time) Yahoo Finance chart closes are cached in migration `0005_market_data` and returned with `live` / `cached` / `unavailable` status. Unavailability degrades gracefully and never fabricates a price.
+- **Grounded assistant:** `POST /assistant/chat` aggregates verified insights, recurring items, risk, recommendations and market references into a fenced JSON context; an OpenAI-compatible model may only rephrase those values. Supports up to 20 prior history messages per request, treats user/merchant text as data (prompt-injection resistance), caps response length, and returns `503 llm_not_configured` when no provider is configured.
+- **Configuration:** LLM settings are loaded from `backend/.env` via Compose `env_file`; `.env` is gitignored and excluded from the image via `.dockerignore`. Gemini is supported through its OpenAI-compatible endpoint.
+- Hardened statement intelligence (PDF parsing, classifier cache/evaluation) and resolved transaction-categorization conflicts.
+
+### Android
+- Completed the risk-tolerance questionnaire flow, including answer validation, submit/retake, and the combined tolerance/behaviour score display.
+- Added the Investment Suggestions screen: spending context, allocation breakdown with rationale, caution notes, market reference cards, and the what-if simulator.
+- Added the **Ask** tab: grounded assistant chat with suggested prompts, multi-turn history, and thinking/error states (network failures surface as an error message).
+- Navigation now exposes six bottom tabs (Transactions / Insights / Budgets / Recurring / Risk / Ask); recommendations open from Risk and statement history from Home.
+- Stabilized SQLCipher startup, token persistence and statement upload; corrected insights trend labels; raised the assistant chat read timeout.
+
 ## [v3.0.0-phase3] — 2026-08-06
 
 ### Backend
