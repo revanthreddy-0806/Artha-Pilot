@@ -18,12 +18,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -33,6 +42,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,11 +65,23 @@ fun HomeScreen(
     onUploadClick: () -> Unit,
     onStatementsClick: () -> Unit,
     onLogout: () -> Unit,
+    refreshSignal: Boolean = false,
+    onRefreshHandled: () -> Unit = {},
     viewModel: TransactionsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
+
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal) {
+            viewModel.refresh()
+            onRefreshHandled()
+        }
+    }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -73,6 +95,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("Transactions") },
                 actions = {
+                    IconButton(onClick = { showCreateDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add transaction")
+                    }
                     IconButton(onClick = onStatementsClick) {
                         Icon(Icons.Default.History, contentDescription = "Statement history")
                     }
@@ -93,6 +118,69 @@ fun HomeScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            OutlinedTextField(
+                value = uiState.searchQuery,
+                onValueChange = viewModel::setSearchQuery,
+                label = { Text("Search transactions") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (uiState.searchQuery.isNotBlank()) {
+                        IconButton(onClick = viewModel::clearSearch) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = uiState.transactionTypeFilter == null,
+                    onClick = { viewModel.setTransactionTypeFilter(null) },
+                    label = { Text("All") },
+                )
+                FilterChip(
+                    selected = uiState.transactionTypeFilter == "credit",
+                    onClick = { viewModel.setTransactionTypeFilter("credit") },
+                    label = { Text("Income") },
+                )
+                FilterChip(
+                    selected = uiState.transactionTypeFilter == "debit",
+                    onClick = { viewModel.setTransactionTypeFilter("debit") },
+                    label = { Text("Expense") },
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = viewModel::clearFilters,
+                    label = { Text("Clear filters") },
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = uiState.minAmount,
+                    onValueChange = viewModel::setMinAmount,
+                    label = { Text("Min") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = uiState.maxAmount,
+                    onValueChange = viewModel::setMaxAmount,
+                    label = { Text("Max") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = viewModel::applyAmountFilters) { Text("Apply") }
+            }
+
             CategoryFilterRow(
                 options = uiState.categoryOptions,
                 selected = uiState.categoryFilter,
@@ -137,6 +225,8 @@ fun HomeScreen(
                             TransactionCard(
                                 transaction = transaction,
                                 onClick = { selectedTransaction = transaction },
+                                onEdit = { editingTransaction = transaction },
+                                onDelete = { transactionToDelete = transaction },
                             )
                         }
                         if (uiState.hasMore) {
@@ -167,6 +257,72 @@ fun HomeScreen(
             },
         )
     }
+
+    if (showCreateDialog) {
+        TransactionFormDialog(
+            title = "Add transaction",
+            initial = null,
+            categories = uiState.categoryOptions,
+            isSaving = uiState.isSaving,
+            onDismiss = { showCreateDialog = false },
+            onSave = { type, amount, date, description, category, balance ->
+                viewModel.createTransaction(type, amount, date, description, category, balance)
+                showCreateDialog = false
+            },
+        )
+    }
+
+    editingTransaction?.let { transaction ->
+        TransactionFormDialog(
+            title = "Edit transaction",
+            initial = transaction,
+            categories = uiState.categoryOptions,
+            isSaving = uiState.isSaving,
+            onDismiss = { editingTransaction = null },
+            onSave = { type, amount, date, description, category, balance ->
+                viewModel.updateTransaction(
+                    id = transaction.id,
+                    transactionType = type,
+                    amount = amount,
+                    date = date,
+                    description = description,
+                    category = category,
+                    balance = balance,
+                )
+                editingTransaction = null
+            },
+        )
+    }
+
+    transactionToDelete?.let { transaction ->
+        AlertDialog(
+            onDismissRequest = { if (uiState.deletingId == null) transactionToDelete = null },
+            title = { Text("Delete transaction?") },
+            text = {
+                Text(
+                    "Delete \"${transaction.description}\" on ${transaction.date} for ${amountText(transaction)}? " +
+                        "This action cannot be undone.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteTransaction(transaction.id)
+                        transactionToDelete = null
+                    },
+                    enabled = uiState.deletingId != transaction.id,
+                ) {
+                    Text(if (uiState.deletingId == transaction.id) "Deleting…" else "Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { transactionToDelete = null },
+                    enabled = uiState.deletingId != transaction.id,
+                ) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -190,13 +346,13 @@ private fun AlertsSection(alerts: List<Alert>) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = alert.title,
+                            alert.title,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = color,
                         )
                         Text(
-                            text = alert.message,
+                            alert.message,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -233,6 +389,8 @@ private fun CategoryFilterRow(
 private fun TransactionCard(
     transaction: Transaction,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp),
@@ -243,19 +401,25 @@ private fun TransactionCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = transaction.description,
+                    transaction.description,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    text = "${transaction.date} · ${transaction.category}" +
+                    "${transaction.date} · ${transaction.category}" +
                         if (transaction.isRecurring) " · ↻ recurring" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit transaction")
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete transaction")
+            }
             Text(
-                text = amountText(transaction),
+                amountText(transaction),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = if (transaction.transactionType == "credit") {
@@ -324,6 +488,93 @@ private fun CategoryCorrectionDialog(
             androidx.compose.material3.TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
+        },
+    )
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TransactionFormDialog(
+    title: String,
+    initial: Transaction?,
+    categories: List<String>,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, Double, String, String, String, Double?) -> Unit,
+) {
+    var type by remember(initial) { mutableStateOf(initial?.transactionType ?: "debit") }
+    var amountText by remember(initial) { mutableStateOf(initial?.amount?.toString() ?: "") }
+    var dateText by remember(initial) { mutableStateOf(initial?.date ?: java.time.LocalDate.now().toString()) }
+    var description by remember(initial) { mutableStateOf(initial?.description ?: "") }
+    var category by remember(initial) { mutableStateOf(initial?.category ?: (categories.firstOrNull() ?: "Uncategorized")) }
+    var balanceText by remember(initial) { mutableStateOf(initial?.balance?.toString() ?: "") }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = type == "credit", onClick = { type = "credit" }, label = { Text("Income") })
+                    FilterChip(selected = type == "debit", onClick = { type = "debit" }, label = { Text("Expense") })
+                }
+                OutlinedTextField(value = amountText, onValueChange = { amountText = it }, label = { Text("Amount") }, singleLine = true)
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, singleLine = true)
+                ExposedDropdownMenuBox(expanded = categoryExpanded, onExpandedChange = { categoryExpanded = it }) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
+                        modifier = Modifier.menuAnchor(),
+                    )
+                    ExposedDropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        categories.forEach { choice ->
+                            DropdownMenuItem(text = { Text(choice) }, onClick = {
+                                category = choice
+                                categoryExpanded = false
+                            })
+                        }
+                    }
+                }
+                OutlinedTextField(value = dateText, onValueChange = { dateText = it }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true)
+                OutlinedTextField(value = balanceText, onValueChange = { balanceText = it }, label = { Text("Balance (optional)") }, singleLine = true)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val amount = amountText.toDoubleOrNull()
+                if (amount == null || amount <= 0) {
+                    error = "Amount must be greater than zero"
+                    return@TextButton
+                }
+                if (description.isBlank()) {
+                    error = "Description is required"
+                    return@TextButton
+                }
+                try {
+                    java.time.LocalDate.parse(dateText)
+                } catch (_: java.time.format.DateTimeParseException) {
+                    error = "Date must be YYYY-MM-DD"
+                    return@TextButton
+                }
+                val balance = balanceText.toDoubleOrNull()
+                if (balanceText.isNotBlank() && balance == null) {
+                    error = "Balance must be a number"
+                    return@TextButton
+                }
+                onSave(type, amount, dateText, description.trim(), category, balance)
+            }, enabled = !isSaving) {
+                Text(if (isSaving) "Saving�" else "Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancel") }
         },
     )
 }

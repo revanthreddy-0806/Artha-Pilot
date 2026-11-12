@@ -66,6 +66,7 @@ def test_rule_based_categories():
     assert categorize("ATM WITHDRAWAL AT HDFC")[0] == "Cash"
     assert categorize("UPI transfer to friend")[0] == "Transfer"
     assert categorize("RELIANCE FRESH GROCERY")[0] == "Groceries"
+    assert categorize("BLINKIT ORDER")[0] == "Groceries"
     assert categorize("mutual fund sip payment")[0] == "Investments"
 
 

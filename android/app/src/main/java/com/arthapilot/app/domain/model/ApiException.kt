@@ -32,6 +32,9 @@ sealed class ApiException(message: String) : IOException(message) {
                 "unsupported_file_type" -> "Only .csv and .pdf bank statements are supported."
                 "file_too_large" -> "The file is larger than the 10 MB limit."
                 "statement_parse_failed" -> "The statement could not be parsed. Try another file."
+                "duplicate_statement" -> "This statement has already been uploaded."
+                "llm_not_configured" ->
+                    "The AI assistant is not available right now. Please try again later."
                 "invalid_category" -> "That category is not valid."
                 "transaction_not_found" -> "Transaction not found."
                 "not_found" -> "The requested resource was not found."

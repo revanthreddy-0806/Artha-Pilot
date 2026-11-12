@@ -2,7 +2,7 @@
 from datetime import date
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.domain.entities import ParseStatus
 from app.models.statement import Statement
@@ -29,6 +29,20 @@ class StatementRepository:
             )
         )
         return rows, total
+
+    def processed_with_transactions(self, user_id: int) -> list[Statement]:
+        """Processed statements and their rows, used for duplicate detection."""
+        return list(
+            self._db.scalars(
+                select(Statement)
+                .where(
+                    Statement.user_id == user_id,
+                    Statement.parse_status == ParseStatus.PROCESSED,
+                )
+                .options(selectinload(Statement.transactions))
+                .order_by(Statement.id.desc())
+            )
+        )
 
     def create(
         self,

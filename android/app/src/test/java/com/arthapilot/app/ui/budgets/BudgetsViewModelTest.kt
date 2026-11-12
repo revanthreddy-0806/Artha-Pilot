@@ -1,8 +1,12 @@
 package com.arthapilot.app.ui.budgets
 
+import com.arthapilot.app.data.refresh.DataInvalidationBus
 import com.arthapilot.app.data.repository.BudgetRepository
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.Budget
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -101,8 +105,37 @@ class BudgetsViewModelTest {
         assertEquals("Server error", viewModel.uiState.value.error)
     }
 
+    @Test
+    fun `invalidation bus reloads budgets`() = runTest(dispatcher) {
+        val repository = FakeBudgetRepository(
+            budgets = listOf(budget("Rent", 20000.0, 15000.0)),
+        )
+        val bus = FakeDataInvalidationBus()
+        val viewModel = BudgetsViewModel(repository, bus)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.fetchCount)
+        bus.notifyDataChanged()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.fetchCount)
+        assertEquals(1, viewModel.uiState.value.budgets.size)
+    }
+
     private fun budget(category: String, limit: Double, spent: Double) =
         Budget(category, limit, spent, spent / limit * 100, spent > limit)
+
+    private class FakeDataInvalidationBus : DataInvalidationBus {
+        private val _revision = MutableStateFlow(0L)
+        override val revision: StateFlow<Long> = _revision.asStateFlow()
+        override fun notifyDataChanged() {
+            _revision.value = _revision.value + 1
+        }
+
+        override fun reset() {
+            _revision.value = 0L
+        }
+    }
 
     private class FakeBudgetRepository(
         val budgets: List<Budget> = emptyList(),
@@ -112,8 +145,10 @@ class BudgetsViewModelTest {
     ) : BudgetRepository {
         var lastSet: Pair<String, Double>? = null
         var lastDeleted: String? = null
+        var fetchCount: Int = 0
 
         override suspend fun fetchBudgets(): List<Budget> {
+            fetchCount += 1
             fail?.let { throw it }
             return budgets
         }

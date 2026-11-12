@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 interface TransactionDao {
 
     @Upsert
+    suspend fun upsert(transaction: TransactionEntity)
+
+    @Upsert
     suspend fun upsertAll(transactions: List<TransactionEntity>)
 
     @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
@@ -20,6 +23,9 @@ interface TransactionDao {
 
     @Query("UPDATE transactions SET category = :category WHERE id = :id")
     suspend fun updateCategory(id: Long, category: String)
+
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }
 
 @Dao

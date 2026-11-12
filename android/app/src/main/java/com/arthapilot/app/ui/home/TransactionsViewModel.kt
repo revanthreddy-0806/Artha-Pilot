@@ -2,6 +2,8 @@ package com.arthapilot.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.arthapilot.app.data.refresh.DataInvalidationBus
+import com.arthapilot.app.data.refresh.NoOpDataInvalidationBus
 import com.arthapilot.app.data.repository.BudgetRepository
 import com.arthapilot.app.data.repository.InsightsRepository
 import com.arthapilot.app.data.repository.TransactionRepository
@@ -12,6 +14,8 @@ import com.arthapilot.app.domain.model.RecurringItem
 import com.arthapilot.app.domain.model.Transaction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,12 +30,22 @@ import javax.inject.Inject
 data class TransactionsUiState(
     val transactions: List<Transaction> = emptyList(),
     val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
+    val deletingId: Long? = null,
     val error: String? = null,
     val offline: Boolean = false,
     val page: Int = 0,
     val pageSize: Int = 50,
     val total: Int = 0,
     val categoryFilter: String? = null,
+    val searchQuery: String = "",
+    val transactionTypeFilter: String? = null,
+    val startDate: String? = null,
+    val endDate: String? = null,
+    val minAmount: String = "",
+    val maxAmount: String = "",
+    val sortBy: String = "date",
+    val sortDir: String = "desc",
     val hasMore: Boolean = false,
     val categoryOptions: List<String> = FALLBACK_CATEGORIES,
     val alerts: List<Alert> = emptyList(),
@@ -63,10 +77,20 @@ class TransactionsViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val insightsRepository: InsightsRepository,
     private val budgetRepository: BudgetRepository,
+    private val invalidationBus: DataInvalidationBus,
 ) : ViewModel() {
+
+    constructor(
+        transactionRepository: TransactionRepository,
+        insightsRepository: InsightsRepository,
+        budgetRepository: BudgetRepository,
+    ) : this(transactionRepository, insightsRepository, budgetRepository, NoOpDataInvalidationBus)
 
     private val _uiState = MutableStateFlow(TransactionsUiState())
     val uiState: StateFlow<TransactionsUiState> = _uiState.asStateFlow()
+
+    private var searchJob: Job? = null
+    private var requestId: Long = 0
 
     /** Offline mirror of the last successful fetch. */
     val cachedTransactions: StateFlow<List<Transaction>> =
@@ -84,11 +108,24 @@ class TransactionsViewModel @Inject constructor(
         load(page = 1, reset = true)
     }
 
-    fun loadMore() {
-        val state = _uiState.value
-        if (state.isLoading || !state.hasMore) return
-        _uiState.update { it.copy(isLoading = true) }
-        load(page = state.page + 1, reset = false)
+    fun setSearchQuery(value: String) {
+        _uiState.update { it.copy(searchQuery = value) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(300)
+            refresh()
+        }
+    }
+
+    fun clearSearch() {
+        searchJob?.cancel()
+        _uiState.update { it.copy(searchQuery = "") }
+        refresh()
+    }
+
+    fun setTransactionTypeFilter(value: String?) {
+        _uiState.update { it.copy(transactionTypeFilter = value) }
+        refresh()
     }
 
     fun setCategoryFilter(category: String?) {
@@ -96,12 +133,154 @@ class TransactionsViewModel @Inject constructor(
         refresh()
     }
 
+    fun setStartDate(value: String?) {
+        _uiState.update { it.copy(startDate = value) }
+        refresh()
+    }
+
+    fun setEndDate(value: String?) {
+        _uiState.update { it.copy(endDate = value) }
+        refresh()
+    }
+
+    fun setMinAmount(value: String) {
+        _uiState.update { it.copy(minAmount = value) }
+    }
+
+    fun setMaxAmount(value: String) {
+        _uiState.update { it.copy(maxAmount = value) }
+    }
+
+    fun applyAmountFilters() {
+        refresh()
+    }
+
+    fun setSort(sortBy: String, sortDir: String) {
+        _uiState.update { it.copy(sortBy = sortBy, sortDir = sortDir) }
+        refresh()
+    }
+
+    fun clearFilters() {
+        searchJob?.cancel()
+        _uiState.update {
+            it.copy(
+                categoryFilter = null,
+                searchQuery = "",
+                transactionTypeFilter = null,
+                startDate = null,
+                endDate = null,
+                minAmount = "",
+                maxAmount = "",
+                sortBy = "date",
+                sortDir = "desc",
+            )
+        }
+        refresh()
+    }
+
+    fun loadMore() {
+        val state = _uiState.value
+        if (state.isLoading || !state.hasMore) return
+        _uiState.update { it.copy(isLoading = true) }
+        load(page = state.page + 1, reset = false)
+    }
+
     fun onErrorDismissed() = _uiState.update { it.copy(error = null) }
+
+    fun createTransaction(
+        transactionType: String,
+        amount: Double,
+        date: String,
+        description: String,
+        category: String,
+        balance: Double?,
+    ) {
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, error = null) }
+        viewModelScope.launch {
+            try {
+                transactionRepository.createTransaction(
+                    transactionType = transactionType,
+                    amount = amount,
+                    date = date,
+                    description = description,
+                    category = category,
+                    balance = balance,
+                )
+                invalidationBus.notifyDataChanged()
+                refresh()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                _uiState.update { it.copy(error = e.userMessage) }
+            } finally {
+                _uiState.update { it.copy(isSaving = false) }
+            }
+        }
+    }
+
+    fun updateTransaction(
+        id: Long,
+        transactionType: String?,
+        amount: Double?,
+        date: String?,
+        description: String?,
+        category: String?,
+        balance: Double?,
+    ) {
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, error = null) }
+        viewModelScope.launch {
+            try {
+                transactionRepository.updateTransaction(
+                    id = id,
+                    transactionType = transactionType,
+                    amount = amount,
+                    date = date,
+                    description = description,
+                    category = category,
+                    balance = balance,
+                )
+                invalidationBus.notifyDataChanged()
+                refresh()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                _uiState.update { it.copy(error = e.userMessage) }
+            } finally {
+                _uiState.update { it.copy(isSaving = false) }
+            }
+        }
+    }
+
+    fun deleteTransaction(id: Long) {
+        if (_uiState.value.deletingId != null) return
+        _uiState.update { it.copy(deletingId = id, error = null) }
+        viewModelScope.launch {
+            try {
+                transactionRepository.deleteTransaction(id)
+                invalidationBus.notifyDataChanged()
+                val state = _uiState.value
+                val wasLastOnPage = state.transactions.size <= 1
+                val targetPage = if (wasLastOnPage && state.page > 1) state.page - 1 else state.page
+                load(targetPage.coerceAtLeast(1), reset = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ApiException) {
+                _uiState.update { it.copy(error = e.userMessage) }
+            } finally {
+                _uiState.update { it.copy(deletingId = null) }
+            }
+        }
+    }
 
     fun updateCategory(id: Long, category: String) {
         viewModelScope.launch {
             try {
                 transactionRepository.updateCategory(id, category)
+                invalidationBus.notifyDataChanged()
+                // Re-fetch so filtered lists drop a row that no longer matches the filter.
+                refresh()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
@@ -135,6 +314,7 @@ class TransactionsViewModel @Inject constructor(
     }
 
     private fun load(page: Int, reset: Boolean) {
+        val currentRequestId = ++requestId
         viewModelScope.launch {
             val state = _uiState.value
             try {
@@ -142,10 +322,16 @@ class TransactionsViewModel @Inject constructor(
                     page = page,
                     pageSize = state.pageSize,
                     category = state.categoryFilter,
-                    transactionType = null,
-                    startDate = null,
-                    endDate = null,
+                    transactionType = state.transactionTypeFilter,
+                    startDate = state.startDate,
+                    endDate = state.endDate,
+                    search = state.searchQuery.takeIf { it.isNotBlank() },
+                    minAmount = state.minAmount.toDoubleOrNull(),
+                    maxAmount = state.maxAmount.toDoubleOrNull(),
+                    sortBy = state.sortBy,
+                    sortDir = state.sortDir,
                 )
+                if (currentRequestId != requestId) return@launch
                 _uiState.update {
                     it.copy(
                         transactions = if (reset) result.items else it.transactions + result.items,
@@ -159,6 +345,7 @@ class TransactionsViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
+                if (currentRequestId != requestId) return@launch
                 val cached = if (e is ApiException.Network) cachedTransactions.value else emptyList()
                 if (cached.isNotEmpty()) {
                     _uiState.update {
@@ -174,6 +361,7 @@ class TransactionsViewModel @Inject constructor(
                     _uiState.update { it.copy(error = e.userMessage, isLoading = false) }
                 }
             }
+            return@launch
         }
     }
 }

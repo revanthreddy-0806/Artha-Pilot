@@ -1,5 +1,6 @@
 package com.arthapilot.app.ui.statements
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -100,7 +103,7 @@ fun StatementsScreen(
                         }
                     }
                     items(uiState.statements, key = { it.id }) { statement ->
-                        StatementCard(statement = statement)
+                        StatementCard(statement = statement, onClick = { viewModel.openStatementDrillDown(statement) })
                     }
                     if (uiState.hasMore) {
                         item {
@@ -117,11 +120,102 @@ fun StatementsScreen(
             }
         }
     }
+
+    uiState.selectedStatement?.let { statement ->
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDrillDownLoading) viewModel.closeStatementDrillDown()
+            },
+            title = { Text(statement.filename) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = buildString {
+                            append(statement.bankName ?: "Bank statement")
+                            statement.periodStart?.let { append(" • $it") }
+                            statement.periodEnd?.let { append(" to $it") }
+                            append(" • ${statement.transactionCount} transactions")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    when {
+                        uiState.isDrillDownLoading -> {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+
+                        uiState.drillDownError != null -> {
+                            Text(
+                                text = uiState.drillDownError!!,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(onClick = viewModel::retryStatementDrillDown) {
+                                Text("Retry")
+                            }
+                        }
+
+                        uiState.statementTransactions.isEmpty() -> {
+                            Text("No transactions imported from this statement.")
+                        }
+
+                        else -> {
+                            LazyColumn(modifier = Modifier.height(320.dp)) {
+                                items(uiState.statementTransactions, key = { it.id }) { transaction ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = transaction.description,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                            )
+                                            Text(
+                                                text = "${transaction.date} • ${transaction.category}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        Text(
+                                            text = "${if (transaction.transactionType == "credit") "+" else "-"}${transaction.amount}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (transaction.transactionType == "credit") {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.error
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::closeStatementDrillDown,
+                    enabled = !uiState.isDrillDownLoading,
+                ) {
+                    Text("Close")
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun StatementCard(statement: StatementInfo) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun StatementCard(statement: StatementInfo, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(

@@ -6,6 +6,8 @@ import com.arthapilot.app.data.local.TransactionDao
 import com.arthapilot.app.data.remote.ApiErrorMapper
 import com.arthapilot.app.data.remote.ArthaApi
 import com.arthapilot.app.data.remote.dto.CategoryUpdateDto
+import com.arthapilot.app.data.remote.dto.TransactionCreateDto
+import com.arthapilot.app.data.remote.dto.TransactionUpdateDto
 import com.arthapilot.app.data.remote.toDomain
 import com.arthapilot.app.data.remote.toEntity
 import com.arthapilot.app.domain.model.ApiException
@@ -33,6 +35,12 @@ interface TransactionRepository {
         transactionType: String?,
         startDate: String?,
         endDate: String?,
+        search: String? = null,
+        minAmount: Double? = null,
+        maxAmount: Double? = null,
+        statementId: Long? = null,
+        sortBy: String? = null,
+        sortDir: String? = null,
     ): TransactionPage
 
     /**
@@ -41,6 +49,27 @@ interface TransactionRepository {
      * next successful fetch.
      */
     suspend fun updateCategory(id: Long, category: String): Transaction
+
+    suspend fun createTransaction(
+        transactionType: String,
+        amount: Double,
+        date: String,
+        description: String,
+        category: String,
+        balance: Double?,
+    ): Transaction
+
+    suspend fun updateTransaction(
+        id: Long,
+        transactionType: String?,
+        amount: Double?,
+        date: String?,
+        description: String?,
+        category: String?,
+        balance: Double?,
+    ): Transaction
+
+    suspend fun deleteTransaction(id: Long)
 }
 
 @Singleton
@@ -60,10 +89,29 @@ class TransactionRepositoryImpl @Inject constructor(
         transactionType: String?,
         startDate: String?,
         endDate: String?,
+        search: String?,
+        minAmount: Double?,
+        maxAmount: Double?,
+        statementId: Long?,
+        sortBy: String?,
+        sortDir: String?,
     ): TransactionPage {
         flushPendingChanges()
         val result = try {
-            api.getTransactions(page, pageSize, category, transactionType, startDate, endDate)
+            api.getTransactions(
+                page = page,
+                pageSize = pageSize,
+                category = category,
+                transactionType = transactionType,
+                startDate = startDate,
+                endDate = endDate,
+                q = search,
+                minAmount = minAmount,
+                maxAmount = maxAmount,
+                statementId = statementId,
+                sortBy = sortBy,
+                sortDir = sortDir,
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
@@ -106,6 +154,75 @@ class TransactionRepositoryImpl @Inject constructor(
         } catch (t: Throwable) {
             throw ApiErrorMapper.map(t)
         }
+    }
+
+    override suspend fun createTransaction(
+        transactionType: String,
+        amount: Double,
+        date: String,
+        description: String,
+        category: String,
+        balance: Double?,
+    ): Transaction {
+        val result = try {
+            api.createTransaction(
+                TransactionCreateDto(
+                    transactionType = transactionType,
+                    amount = amount,
+                    date = date,
+                    description = description,
+                    category = category,
+                    balance = balance,
+                ),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw ApiErrorMapper.map(t)
+        }
+        transactionDao.upsert(result.toEntity())
+        return result.toDomain()
+    }
+
+    override suspend fun updateTransaction(
+        id: Long,
+        transactionType: String?,
+        amount: Double?,
+        date: String?,
+        description: String?,
+        category: String?,
+        balance: Double?,
+    ): Transaction {
+        val result = try {
+            api.updateTransaction(
+                id,
+                TransactionUpdateDto(
+                    transactionType = transactionType,
+                    amount = amount,
+                    date = date,
+                    description = description,
+                    category = category,
+                    balance = balance,
+                ),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw ApiErrorMapper.map(t)
+        }
+        transactionDao.upsert(result.toEntity())
+        return result.toDomain()
+    }
+
+    override suspend fun deleteTransaction(id: Long) {
+        try {
+            api.deleteTransaction(id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw ApiErrorMapper.map(t)
+        }
+        transactionDao.deleteById(id)
     }
 
     /** Best-effort replay of queued category changes; failures stay queued. */

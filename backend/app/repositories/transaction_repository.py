@@ -31,6 +31,12 @@ class TransactionRepository:
         transaction_type: TransactionType | None = None,
         start_date: date | None = None,
         end_date: date | None = None,
+        search: str | None = None,
+        min_amount: float | None = None,
+        max_amount: float | None = None,
+        statement_id: int | None = None,
+        sort_by: str = "date",
+        sort_dir: str = "desc",
     ) -> tuple[list[Transaction], int]:
         query = select(Transaction).where(Transaction.user_id == user_id)
         count_query = select(func.count()).select_from(Transaction).where(Transaction.user_id == user_id)
@@ -47,11 +53,36 @@ class TransactionRepository:
         if end_date:
             query = query.where(Transaction.date <= end_date)
             count_query = count_query.where(Transaction.date <= end_date)
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.where(Transaction.description.ilike(term))
+            count_query = count_query.where(Transaction.description.ilike(term))
+        if min_amount is not None:
+            query = query.where(Transaction.amount >= min_amount)
+            count_query = count_query.where(Transaction.amount >= min_amount)
+        if max_amount is not None:
+            query = query.where(Transaction.amount <= max_amount)
+            count_query = count_query.where(Transaction.amount <= max_amount)
+        if statement_id is not None:
+            query = query.where(Transaction.statement_id == statement_id)
+            count_query = count_query.where(Transaction.statement_id == statement_id)
+
+        sort_column = {
+            "date": Transaction.date,
+            "amount": Transaction.amount,
+            "description": Transaction.description,
+            "category": Transaction.category,
+            "created_at": Transaction.created_at,
+        }.get(sort_by, Transaction.date)
+        if sort_dir == "asc":
+            ordering = (sort_column.asc(), Transaction.id.asc())
+        else:
+            ordering = (sort_column.desc(), Transaction.id.desc())
 
         total = self._db.scalar(count_query) or 0
         rows = list(
             self._db.scalars(
-                query.order_by(Transaction.date.desc(), Transaction.id.desc())
+                query.order_by(*ordering)
                 .offset((page - 1) * page_size)
                 .limit(page_size)
             )
@@ -70,6 +101,21 @@ class TransactionRepository:
         self._db.commit()
         self._db.refresh(transaction)
         return transaction
+
+    def save(self, transaction: Transaction) -> Transaction:
+        self._db.add(transaction)
+        self._db.commit()
+        self._db.refresh(transaction)
+        return transaction
+
+    def update(self, transaction: Transaction) -> Transaction:
+        self._db.commit()
+        self._db.refresh(transaction)
+        return transaction
+
+    def delete(self, transaction: Transaction) -> None:
+        self._db.delete(transaction)
+        self._db.commit()
 
     def all_for_user(
         self,

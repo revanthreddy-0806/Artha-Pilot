@@ -52,6 +52,7 @@ data class UploadUiState(
 @Composable
 fun UploadStatementScreen(
     onBack: () -> Unit,
+    onUploadComplete: () -> Unit,
     viewModel: UploadViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -69,6 +70,12 @@ fun UploadStatementScreen(
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.onErrorDismissed()
+        }
+    }
+
+    LaunchedEffect(uiState.success) {
+        if (uiState.success != null) {
+            onUploadComplete()
         }
     }
 
@@ -108,7 +115,25 @@ fun UploadStatementScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (uiState.isUploading) {
+            if (uiState.success != null) {
+                Text(
+                    text = "Statement uploaded",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "${uiState.success!!.transactionCount} transactions imported",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = onBack,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("View transactions")
+                }
+            } else if (uiState.isUploading) {
                 Box(contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }

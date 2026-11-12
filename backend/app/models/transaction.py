@@ -12,8 +12,8 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    statement_id: Mapped[int] = mapped_column(
-        ForeignKey("statements.id", ondelete="CASCADE"), index=True, nullable=False
+    statement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("statements.id", ondelete="CASCADE"), index=True, nullable=True
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     date: Mapped[date] = mapped_column(Date, index=True, nullable=False)

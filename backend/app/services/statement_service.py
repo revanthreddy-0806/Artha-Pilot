@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import AppError
-from app.domain.entities import ParsedStatement
+from app.domain.entities import ParsedStatement, RawTransaction
 from app.ml.classifier import categorize_many
 from app.models.statement import Statement
 from app.models.transaction import Transaction
@@ -30,15 +30,12 @@ class StatementService:
         file_type = self._validate_file(filename, content)
         filename = _sanitize_filename(filename)
 
-        statement = self._statements.create(user_id, filename, file_type)
         try:
             parsed: ParsedStatement = parse_statement(content, filename, file_type)
-            statement = self._persist_parsed(statement, parsed)
-            logger.info(
-                "Statement %s processed: %d transactions for user %s",
-                statement.id, statement.transaction_count, user_id,
-            )
         except ValueError as exc:
+            # Preserve failed-parse history without creating a duplicate statement
+            # for a file that has already been processed successfully.
+            statement = self._statements.create(user_id, filename, file_type)
             self._statements.mark_failed(statement, str(exc))
             self._statements.commit()
             logger.warning("Statement %s failed parsing: %s", statement.id, exc)
@@ -48,7 +45,45 @@ class StatementService:
                 error_code="statement_parse_failed",
             ) from exc
 
+        existing = self._find_duplicate(user_id, parsed)
+        if existing is not None:
+            logger.info(
+                "Rejected duplicate statement for user %s (matches statement %s)",
+                user_id,
+                existing.id,
+            )
+            raise AppError(
+                "This statement has already been uploaded.",
+                status_code=409,
+                error_code="duplicate_statement",
+                details={"statement_id": existing.id},
+            )
+
+        statement = self._statements.create(user_id, filename, file_type)
+        statement = self._persist_parsed(statement, parsed)
+        logger.info(
+            "Statement %s processed: %d transactions for user %s",
+            statement.id, statement.transaction_count, user_id,
+        )
         return statement
+
+    def _find_duplicate(self, user_id: int, parsed: ParsedStatement) -> Statement | None:
+        """Return an existing statement with the same parsed content, if any.
+
+        The signature is derived from the parsed rows (including each row's raw
+        source line and closing balance), not just the filename. Re-uploading
+        the same file under another name is therefore still rejected, while a
+        statement with even one distinct row remains acceptable.
+        """
+        if not parsed.transactions:
+            return None
+        signature = _parsed_signature(parsed)
+        for statement in self._statements.processed_with_transactions(user_id):
+            if statement.transaction_count != len(parsed.transactions):
+                continue
+            if _statement_signature(statement) == signature:
+                return statement
+        return None
 
     @staticmethod
     def _validate_file(filename: str, content: bytes) -> str:
@@ -121,6 +156,56 @@ class StatementService:
         changed = self._transactions.set_recurring_flags(user_id, recurring_ids)
         if changed:
             logger.info("Updated is_recurring on %d transactions for user %s", changed, user_id)
+
+
+def _amount_key(value: float | None) -> str:
+    return "" if value is None else f"{float(value):.2f}"
+
+
+def _type_key(value: object) -> str:
+    return value.value if hasattr(value, "value") else str(value)
+
+
+def _parsed_transaction_key(raw: RawTransaction) -> tuple[str, ...]:
+    return (
+        raw.date.isoformat(),
+        raw.description.strip(),
+        _amount_key(raw.amount),
+        _type_key(raw.transaction_type),
+        _amount_key(raw.balance),
+        (raw.raw_line or "").strip(),
+    )
+
+
+def _stored_transaction_key(transaction: Transaction) -> tuple[str, ...]:
+    return (
+        transaction.date.isoformat(),
+        transaction.description.strip(),
+        _amount_key(transaction.amount),
+        _type_key(transaction.transaction_type),
+        _amount_key(transaction.balance),
+        (transaction.raw_line or "").strip(),
+    )
+
+
+def _parsed_signature(parsed: ParsedStatement) -> tuple[object, ...]:
+    return (
+        (parsed.bank_name or "").strip(),
+        (parsed.account_number or "").strip(),
+        parsed.period_start.isoformat() if parsed.period_start else "",
+        parsed.period_end.isoformat() if parsed.period_end else "",
+        tuple(sorted(_parsed_transaction_key(raw) for raw in parsed.transactions)),
+    )
+
+
+def _statement_signature(statement: Statement) -> tuple[object, ...]:
+    return (
+        (statement.bank_name or "").strip(),
+        (statement.account_number or "").strip(),
+        statement.period_start.isoformat() if statement.period_start else "",
+        statement.period_end.isoformat() if statement.period_end else "",
+        tuple(sorted(_stored_transaction_key(t) for t in statement.transactions)),
+    )
 
 
 def _sanitize_filename(filename: str) -> str:

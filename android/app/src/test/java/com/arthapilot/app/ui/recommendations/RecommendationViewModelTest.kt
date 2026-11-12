@@ -1,5 +1,6 @@
 package com.arthapilot.app.ui.recommendations
 
+import com.arthapilot.app.data.refresh.DataInvalidationBus
 import com.arthapilot.app.data.repository.InsightsRepository
 import com.arthapilot.app.data.repository.RecommendationRepository
 import com.arthapilot.app.domain.model.AllocationItem
@@ -22,6 +23,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -178,13 +182,46 @@ class RecommendationViewModelTest {
         assertEquals("Cannot reach the server. Check your connection.", viewModel.uiState.value.error)
     }
 
+    @Test
+    fun `invalidation bus reloads recommendations`() = runTest(dispatcher) {
+        val repository = FakeRecommendationRepository(recommendation = recommendation())
+        val bus = FakeDataInvalidationBus()
+        val viewModel = RecommendationViewModel(
+            repository,
+            FakeCategoriesRepository(),
+            bus,
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, repository.fetchCount)
+        bus.notifyDataChanged()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.fetchCount)
+        assertEquals("ok", viewModel.uiState.value.recommendation!!.status)
+    }
+
+    private class FakeDataInvalidationBus : DataInvalidationBus {
+        private val _revision = MutableStateFlow(0L)
+        override val revision: StateFlow<Long> = _revision.asStateFlow()
+        override fun notifyDataChanged() {
+            _revision.value = _revision.value + 1
+        }
+
+        override fun reset() {
+            _revision.value = 0L
+        }
+    }
+
     private class FakeRecommendationRepository(
         val recommendation: Recommendation? = null,
         val whatIf: WhatIfResult? = null,
         val fail: ApiException? = null,
         val whatIfFail: ApiException? = null,
     ) : RecommendationRepository {
+        var fetchCount: Int = 0
         override suspend fun fetchRecommendation(): Recommendation {
+            fetchCount += 1
             fail?.let { throw it }
             return recommendation ?: throw UnsupportedOperationException()
         }

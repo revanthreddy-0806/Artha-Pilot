@@ -2,14 +2,26 @@
 
 All notable changes to Artha Pilot are documented here, per release.
 
-## [Unreleased] — 2026-10-21
+## [Unreleased] - 2026-11-12
 
 ### Tests
 - Made the insights-trends, risk-profile and what-if integration fixtures date-relative. They hardcoded May–August 2026 transaction dates while the services use rolling 3-month windows, so four tests failed once the calendar moved past the fixtures. Assertions are unchanged; the suite is now stable over time.
-- Verified baseline on this date: **239 backend tests passed**; **119 Android unit tests passed** (18 suites).
+- Verified baseline on this date: **258 backend tests passed**; **145 Android unit tests passed** (19 suites).
 
 ### CI
 - Added `.github/workflows/ci.yml`: Python 3.12 backend test job plus a JDK 21 Android job that runs unit tests, `assembleDebug` and `lintDebug` against SDK 37.0 / build-tools 37.0.0. Triggers on pushes to `main`/`develop`, pull requests and manual dispatch; no secrets required.
+
+### Transaction Management
+- Added manual transaction CRUD (`POST`, `PATCH`, `DELETE /api/v1/transactions/{id}`) with `statement_id` nullable via Alembic migration `0006_nullable_statement_id`.
+- Added transaction search, filtering, and sorting (`q` case-insensitive `ILIKE`, `category`, `transaction_type`, `start_date`, `end_date`, `min_amount`, `max_amount`, `sort_by`, `sort_dir` with deterministic ID tie-breaker and pagination).
+- Added per-statement transaction drill-down using `statement_id` filtering and a clickable `StatementCard` modal in `StatementsScreen`.
+- Added transaction deletion confirmation UI and form validation (required description, amount greater than zero, valid `YYYY-MM-DD` date).
+- Added statement content-signature deduplication (`409 duplicate_statement`).
+
+### Cross-Screen Reactive State
+- Wired `DataInvalidationBus` (`StateFlow<Long>` monotonic revision counter with `requestId` guards) across Insights, Recurring, Budgets, Statements, Risk, and Recommendations.
+- Category edits and risk questionnaire submissions now notify dependent screens.
+- Updated verification metrics: **258 backend tests** and **145 Android unit tests (19 suites)** passing.
 
 ### Documentation
 - Updated `README.md` for the implemented Phase 4 risk/recommendation/assistant features, assistant configuration, testing commands, the SQLite-vs-PostgreSQL verification gap, CI, and an explicit implemented-vs-backlog status.

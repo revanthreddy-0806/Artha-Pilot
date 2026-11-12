@@ -6,7 +6,7 @@ tested without a database or web framework.  Detection rules:
 * Only debit transactions are considered (credits are income, not spend).
 * Transactions are grouped by a normalized description (lowercased
   alphanumeric + spaces) and a stable amount (within a tolerance of the
-  larger of Rs 1.00 or 0.5% of the amount).
+  larger of Rs 1.00 or 0.25% of the amount).
 * A group is recurring when the same normalized-description/amount combo
   appears in at least two distinct calendar months with the most common
   interval between 25 and 40 days.

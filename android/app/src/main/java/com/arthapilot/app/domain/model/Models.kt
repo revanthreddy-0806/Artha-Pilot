@@ -16,7 +16,7 @@ data class User(
 
 data class Transaction(
     val id: Long,
-    val statementId: Long,
+    val statementId: Long?,
     val date: String,
     val description: String,
     val amount: Double,

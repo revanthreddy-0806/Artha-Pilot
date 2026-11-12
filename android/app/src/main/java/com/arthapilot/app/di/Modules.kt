@@ -24,6 +24,8 @@ import com.arthapilot.app.data.repository.BudgetRepository
 import com.arthapilot.app.data.repository.BudgetRepositoryImpl
 import com.arthapilot.app.data.repository.InsightsRepository
 import com.arthapilot.app.data.repository.InsightsRepositoryImpl
+import com.arthapilot.app.data.refresh.DataInvalidationBus
+import com.arthapilot.app.data.refresh.DataInvalidationBusImpl
 import com.arthapilot.app.data.repository.RecommendationRepository
 import com.arthapilot.app.data.repository.RecommendationRepositoryImpl
 import com.arthapilot.app.data.repository.StatementRepository
@@ -155,4 +157,7 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindRecommendationRepository(impl: RecommendationRepositoryImpl): RecommendationRepository
+
+    @Binds
+    abstract fun bindDataInvalidationBus(impl: DataInvalidationBusImpl): DataInvalidationBus
 }

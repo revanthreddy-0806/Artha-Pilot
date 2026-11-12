@@ -14,21 +14,24 @@ Artha Pilot helps users take control of their money with AI-assisted bank statem
 | Data | Room offline cache (Android) + SQLCipher encryption + DataStore token store |
 | Security | JWT access/refresh rotation with revocation, BCrypt password hashing, Keystore-protected DB passphrase, backups disabled, auth rate limiting |
 | Parsing | PDF & CSV bank statement upload, auto-format detection, 10 MB upload cap |
-| Insights | Expense dashboard, monthly trends, category breakdown, EMI/recurring detection, credit-risk score + loan eligibility, monthly budgets, statement history (Phase 3) |
+| Insights | Expense dashboard, monthly trends, category breakdown, EMI/recurring detection, credit-risk score + loan eligibility, monthly budgets, statement history, per-statement transaction drill-down, cross-screen reactive invalidation (Phase 3-5) |
+| Transactions | Manual transaction CRUD, search/filter/sort, delete confirmation, form validation, statement-linked and manual transactions, statement content-signature deduplication (Phase 4) |
 | Risk | 0–100 credit-health score, risk-tolerance questionnaire blended 50/50 with spending behaviour, safe-EMI and loan-capacity estimates |
 | Recommendations | Explainable equity/debt/gold allocation by risk band, rationale and caution notes, daily-refreshed market reference quotes, read-only what-if simulator (Phase 4) |
 | Assistant | Grounded chat over the user's verified insights, recurring items, risk profile, recommendations and market references; prompt-injection fencing; returns `llm_not_configured` (503) instead of inventing answers (Phase 4) |
 | Offline | Room cache + queued category corrections replayed when connectivity returns (Phase 3) |
-| Quality | GitHub Actions CI; 239 backend tests and 119 Android unit tests (18 suites) passing locally on 2026-10-21; Android lint 0 errors (15 dependency/plugin version notices + 1 benign obsolete-SDK-folder warning) |
+| Quality | GitHub Actions CI; 258 backend tests and 145 Android unit tests (19 suites) passing locally on 2026-11-12; Android lint 0 errors |
 
 ## Project Status
 
 **Implemented and verified in the codebase**
 
 - Authentication: register/login, BCrypt hashing, JWT access + rotating refresh tokens with revoked-token handling, auth rate limiting.
-- Statements: PDF/CSV upload, format detection, parsing, transaction history, filters, pagination, category correction.
-- Insights: monthly summary/trends, category breakdown, budgets with overrun alerts, recurring/EMI detection, statement history.
-- Risk: spending-behaviour score, risk-tolerance questionnaire, combined assessment, safe-EMI and loan-capacity estimates.
+- Statements: PDF/CSV upload, format detection, parsing, transaction history, filters, pagination, category correction, content-signature deduplication, per-statement transaction drill-down.
+- Transactions: manual create/edit/delete with confirmation and validation; search, filter, sort, pagination; statement-linked and manual transactions.
+- Insights: monthly summary/trends, category breakdown, budgets with overrun alerts, recurring/EMI detection, statement history, reactive invalidation across mutations.
+- Risk: spending-behaviour score, risk-tolerance questionnaire, combined assessment, safe-EMI and loan-capacity estimates; reactive refresh on transaction mutations.
+- Database: Alembic migrations through 0006 (`statement_id` nullable on `transactions` for manual transactions).
 - Recommendations: risk-band allocation with rationale, market reference data with graceful unavailable/cached states, what-if simulation that never mutates stored data.
 - Assistant: grounded, per-user chat that only explains values produced by the backend; multi-turn history (up to 20 prior messages per request, server-enforced); graceful 503 when no LLM is configured.
 - Android: six-tab Compose UI (Transactions / Insights / Budgets / Recurring / Risk / Ask), recommendations opened from the Risk tab, statements opened from Home, encrypted Room cache, offline correction queue.
@@ -131,7 +134,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-Expected on this commit: **239 passed** (~38 s). The suite sets `DATABASE_URL=sqlite:///./test_artha.db` in `tests/conftest.py` and recreates the schema per test, so it is fast and self-contained.
+Expected on this commit: **258 passed**. The suite sets `DATABASE_URL=sqlite:///./test_artha.db` in `tests/conftest.py` and recreates the schema per test, so it is fast and self-contained.
 
 **SQLite vs PostgreSQL/Docker:** the unit/integration suite does **not** verify PostgreSQL-specific migration/transaction behaviour, Docker networking, container startup, or the live network stack. Those require the Compose stack (`docker compose up --build`) and a manual end-to-end run. CI runs only the SQLite suite; it does not start PostgreSQL.
 
@@ -139,7 +142,7 @@ Expected on this commit: **239 passed** (~38 s). The suite sets `DATABASE_URL=sq
 
 ```bash
 cd android
-./gradlew.bat :app:testDebugUnitTest   # 119 tests / 18 suites
+./gradlew.bat :app:testDebugUnitTest   # 145 tests / 19 suites
 ./gradlew.bat :app:assembleDebug
 ./gradlew.bat :app:lintDebug           # 0 errors, 16 warnings
 ```

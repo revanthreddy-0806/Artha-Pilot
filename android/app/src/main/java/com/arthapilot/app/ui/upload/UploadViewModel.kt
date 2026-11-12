@@ -5,6 +5,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.arthapilot.app.data.refresh.DataInvalidationBus
+import com.arthapilot.app.data.refresh.NoOpDataInvalidationBus
 import com.arthapilot.app.data.repository.StatementRepository
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.StatementUploadResult
@@ -20,9 +22,15 @@ import javax.inject.Inject
 
 @HiltViewModel
 class UploadViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @ApplicationContext private val context: Context?,
     private val statementRepository: StatementRepository,
+    private val invalidationBus: DataInvalidationBus,
 ) : ViewModel() {
+
+    constructor(
+        context: Context,
+        statementRepository: StatementRepository,
+    ) : this(context, statementRepository, NoOpDataInvalidationBus)
 
     private val _uiState = MutableStateFlow(UploadUiState())
     val uiState: StateFlow<UploadUiState> = _uiState.asStateFlow()
@@ -33,15 +41,18 @@ class UploadViewModel @Inject constructor(
         this.uri = uri
         _uiState.update {
             it.copy(
-                fileName = resolveFileName(queryDisplayName(uri), uri.lastPathSegment) ?: uri.toString(),
-                mimeType = context.contentResolver.getType(uri),
+                fileName = resolveFileName(
+                    context?.let { ctx -> queryDisplayName(ctx, uri) },
+                    uri.lastPathSegment,
+                ) ?: uri.toString(),
+                mimeType = context?.contentResolver?.getType(uri),
             )
         }
     }
 
     fun upload() {
-        val currentUri = uri
-        if (currentUri == null || _uiState.value.isUploading) return
+        val currentUri = uri as? Uri
+        if (_uiState.value.fileName == null || _uiState.value.isUploading) return
         viewModelScope.launch {
             _uiState.update { it.copy(isUploading = true, error = null) }
             try {
@@ -50,6 +61,7 @@ class UploadViewModel @Inject constructor(
                 val mimeType = resolveMimeType(fileName, state.mimeType)
                 val result = statementRepository.upload(currentUri, fileName, mimeType)
                 _uiState.update { it.copy(success = result) }
+                invalidationBus.notifyDataChanged()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
@@ -64,7 +76,7 @@ class UploadViewModel @Inject constructor(
 
     fun onErrorDismissed() = _uiState.update { it.copy(error = null) }
 
-    private fun queryDisplayName(uri: Uri): String? =
+    private fun queryDisplayName(context: Context, uri: Uri): String? =
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
             if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) {

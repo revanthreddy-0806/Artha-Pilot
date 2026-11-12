@@ -81,7 +81,7 @@ fun TransactionDto.toDomain() = Transaction(
 
 fun TransactionDto.toEntity() = TransactionEntity(
     id = id,
-    statementId = statementId,
+    statementId = statementId ?: 0L,
     date = date,
     description = description,
     amount = amount,

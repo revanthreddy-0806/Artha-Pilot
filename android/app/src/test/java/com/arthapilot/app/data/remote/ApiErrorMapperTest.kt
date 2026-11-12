@@ -43,6 +43,28 @@ class ApiErrorMapperTest {
     }
 
     @Test
+    fun `assistant unavailable hides server configuration details`() {
+        val mapped = ApiErrorMapper.map(
+            httpError(
+                503,
+                """{"error":{"code":"llm_not_configured","message":"Set LLM_BASE_URL, LLM_API_KEY and LLM_MODEL"}}""",
+            ),
+        )
+        assertTrue(mapped is ApiException.Server)
+        val userMessage = mapped.userMessage
+        assertEquals("The AI assistant is not available right now. Please try again later.", userMessage)
+        assertTrue(!userMessage.contains("LLM_"))
+    }
+
+    @Test
+    fun `duplicate statement maps to a friendly upload message`() {
+        val mapped = ApiErrorMapper.map(
+            httpError(409, """{"error":{"code":"duplicate_statement","message":"duplicate"}}"""),
+        )
+        assertEquals("This statement has already been uploaded.", mapped.userMessage)
+    }
+
+    @Test
     fun `network errors map to Network`() {
         assertTrue(ApiErrorMapper.map(IOException("socket closed")) is ApiException.Network)
     }

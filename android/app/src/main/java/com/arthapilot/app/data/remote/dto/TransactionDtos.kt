@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName
 
 data class TransactionDto(
     val id: Long,
-    @SerializedName("statement_id") val statementId: Long,
+    @SerializedName("statement_id") val statementId: Long?,
     val date: String,
     val description: String,
     val amount: Double,
@@ -24,4 +24,22 @@ data class TransactionPageDto(
 
 data class CategoryUpdateDto(
     val category: String,
+)
+
+data class TransactionCreateDto(
+    @SerializedName("transaction_type") val transactionType: String,
+    val amount: Double,
+    val date: String,
+    val description: String,
+    val category: String,
+    val balance: Double? = null,
+)
+
+data class TransactionUpdateDto(
+    @SerializedName("transaction_type") val transactionType: String? = null,
+    val amount: Double? = null,
+    val date: String? = null,
+    val description: String? = null,
+    val category: String? = null,
+    val balance: Double? = null,
 )

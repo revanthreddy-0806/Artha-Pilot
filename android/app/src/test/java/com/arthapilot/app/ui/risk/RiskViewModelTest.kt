@@ -1,7 +1,11 @@
 package com.arthapilot.app.ui.risk
 
+import com.arthapilot.app.data.refresh.DataInvalidationBus
 import com.arthapilot.app.data.repository.InsightsRepository
 import com.arthapilot.app.domain.model.ApiException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.arthapilot.app.domain.model.CategoryBreakdownItem
 import com.arthapilot.app.domain.model.InsightsSummary
 import com.arthapilot.app.domain.model.MonthTrend
@@ -180,12 +184,58 @@ class RiskViewModelTest {
         assertEquals("Cannot reach the server. Check your connection.", viewModel.uiState.value.error)
     }
 
+    @Test
+    fun `invalidation bus reloads risk profile`() = runTest(dispatcher) {
+        val repository = FakeInsightsRepository(profile = profile())
+        val bus = FakeDataInvalidationBus()
+        val viewModel = RiskViewModel(repository, bus)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.riskProfileFetchCount)
+        bus.notifyDataChanged()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.riskProfileFetchCount)
+    }
+
+    @Test
+    fun `submitQuestionnaire notifies invalidation bus`() = runTest(dispatcher) {
+        val repository = FakeInsightsRepository(
+            profile = profile(completed = false),
+            questions = questions(),
+            submitResult = profile(),
+        )
+        val bus = FakeDataInvalidationBus()
+        val viewModel = RiskViewModel(repository, bus)
+        advanceUntilIdle()
+
+        viewModel.selectAnswer("q1", "a")
+        viewModel.selectAnswer("q2", "b")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(1, bus.revision.value.toInt())
+    }
+
+    private class FakeDataInvalidationBus : DataInvalidationBus {
+        private val _revision = MutableStateFlow(0L)
+        override val revision: StateFlow<Long> = _revision.asStateFlow()
+        override fun notifyDataChanged() {
+            _revision.value = _revision.value + 1
+        }
+
+        override fun reset() {
+            _revision.value = 0L
+        }
+    }
+
     private class FakeInsightsRepository(
         val profile: RiskProfile? = null,
         val questions: List<RiskQuestion>? = null,
         val submitResult: RiskProfile? = null,
         val fail: ApiException? = null,
     ) : InsightsRepository {
+        var riskProfileFetchCount: Int = 0
         override suspend fun fetchCategories(): List<String> = emptyList()
 
         override suspend fun fetchSummary(month: String?): InsightsSummary =
@@ -200,6 +250,7 @@ class RiskViewModelTest {
         override suspend fun fetchRecurring(): List<RecurringItem> = emptyList()
 
         override suspend fun fetchRiskProfile(): RiskProfile {
+            riskProfileFetchCount += 1
             fail?.let { throw it }
             return profile ?: throw UnsupportedOperationException()
         }

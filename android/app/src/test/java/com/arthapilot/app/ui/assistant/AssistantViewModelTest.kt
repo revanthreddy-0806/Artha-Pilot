@@ -95,7 +95,7 @@ class AssistantViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("Assistant not configured", state.error)
+        assertEquals("The AI assistant is not available right now. Please try again later.", state.error)
         assertEquals(1, state.messages.size)
         assertTrue(!state.isSending)
     }

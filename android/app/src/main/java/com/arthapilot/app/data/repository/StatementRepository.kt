@@ -32,7 +32,7 @@ interface StatementRepository {
      * Uploads the picked statement file. Reading, size validation and the multipart
      * encoding all live here so the UI layer stays free of ContentResolver IO.
      */
-    suspend fun upload(fileUri: Uri, fileName: String, mimeType: String): StatementUploadResult
+    suspend fun upload(fileUri: Uri?, fileName: String, mimeType: String): StatementUploadResult
 
     /** Statement history from the API, mirrored into the local cache. */
     suspend fun fetchStatements(page: Int, pageSize: Int): StatementPage
@@ -68,11 +68,11 @@ class StatementRepositoryImpl @Inject constructor(
     }
 
     override suspend fun upload(
-        fileUri: Uri,
+        fileUri: Uri?,
         fileName: String,
         mimeType: String,
     ): StatementUploadResult {
-        val bytes = readAllBytes(fileUri)
+        val bytes = readAllBytes(fileUri!!)
         val result = try {
             val part = MultipartBody.Part.createFormData(
                 "file",

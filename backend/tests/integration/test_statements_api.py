@@ -69,6 +69,10 @@ def test_upload_garbage_pdf(client, auth_headers):
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == "statement_parse_failed"
 
+    history = client.get("/api/v1/statements", headers=auth_headers).json()
+    assert history["total"] == 1
+    assert history["items"][0]["parse_status"] == "failed"
+
 
 def test_upload_requires_auth(client, sample_csv_bytes):
     resp = client.post(
@@ -129,6 +133,57 @@ def test_service_rejects_oversize_content(client, db_session, monkeypatch):
     assert exc_info.value.error_code == "file_too_large"
 
 
+def test_upload_same_statement_twice_is_rejected(
+    client, auth_headers, sample_csv_bytes
+):
+    first = client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("statement.csv", sample_csv_bytes, "text/csv")},
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("renamed.csv", sample_csv_bytes, "text/csv")},
+    )
+    assert second.status_code == 409
+    body = second.json()
+    assert body["error"]["code"] == "duplicate_statement"
+    assert body["error"]["details"]["statement_id"] == first.json()["id"]
+
+    history = client.get("/api/v1/statements", headers=auth_headers).json()
+    assert history["total"] == 1
+    assert history["items"][0]["transaction_count"] == 7
+
+
+def test_similar_but_distinct_statement_is_accepted(
+    client, auth_headers, sample_csv_bytes
+):
+    first = client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("statement.csv", sample_csv_bytes, "text/csv")},
+    )
+    assert first.status_code == 201
+
+    # One changed narration is a legitimate, distinct statement, not a re-upload.
+    changed = sample_csv_bytes.replace(b"ZOMATO ORDER", b"SWIGGY ORDER")
+    assert changed != sample_csv_bytes
+    second = client.post(
+        "/api/v1/statements/upload",
+        headers=auth_headers,
+        files={"file": ("statement-v2.csv", changed, "text/csv")},
+    )
+    assert second.status_code == 201
+    assert second.json()["transaction_count"] == 7
+    assert any(t["description"] == "SWIGGY ORDER" for t in second.json()["transactions"])
+
+    history = client.get("/api/v1/statements", headers=auth_headers).json()
+    assert history["total"] == 2
+
+
 def test_list_statements_paginated(client, auth_headers, sample_csv_bytes, sample_pdf_bytes):
     client.post(
         "/api/v1/statements/upload",
@@ -138,16 +193,16 @@ def test_list_statements_paginated(client, auth_headers, sample_csv_bytes, sampl
     client.post(
         "/api/v1/statements/upload",
         headers=auth_headers,
-        files={"file": ("b.csv", sample_csv_bytes, "text/csv")},
+        files={"file": ("b.pdf", sample_pdf_bytes, "application/pdf")},
     )
     resp = client.get("/api/v1/statements", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 2
     assert len(body["items"]) == 2
-    assert body["items"][0]["filename"] == "b.csv"
+    assert body["items"][0]["filename"] == "b.pdf"
     assert body["items"][0]["parse_status"] == "processed"
-    assert body["items"][0]["transaction_count"] == 7
+    assert body["items"][0]["transaction_count"] == 5
 
     page = client.get("/api/v1/statements?page=1&page_size=1", headers=auth_headers).json()
     assert page["total"] == 2

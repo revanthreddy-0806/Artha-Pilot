@@ -284,6 +284,7 @@ RULE_KEYWORDS: dict[str, str] = {
     "GROCERY": "Groceries",
     "KIRANA": "Groceries",
     "BIGBASKET": "Groceries",
+    "BLINKIT": "Groceries",
     "PHARMACY": "Health & Medical",
     "MEDPLUS": "Health & Medical",
     "APOLLO": "Health & Medical",

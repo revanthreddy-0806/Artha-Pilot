@@ -22,8 +22,10 @@ import com.arthapilot.app.data.remote.dto.RiskQuestionnaireSubmitDto
 import com.arthapilot.app.data.remote.dto.StatementListDto
 import com.arthapilot.app.data.remote.dto.StatementUploadResponseDto
 import com.arthapilot.app.data.remote.dto.TokenResponseDto
-import com.arthapilot.app.data.remote.dto.TransactionPageDto
+import com.arthapilot.app.data.remote.dto.TransactionCreateDto
 import com.arthapilot.app.data.remote.dto.TransactionDto
+import com.arthapilot.app.data.remote.dto.TransactionPageDto
+import com.arthapilot.app.data.remote.dto.TransactionUpdateDto
 import com.arthapilot.app.data.remote.dto.UserDto
 import com.arthapilot.app.data.remote.dto.WhatIfRequestDto
 import com.arthapilot.app.data.remote.dto.WhatIfResultDto
@@ -65,6 +67,12 @@ interface ArthaApi {
         @Query("transaction_type") transactionType: String? = null,
         @Query("start_date") startDate: String? = null,
         @Query("end_date") endDate: String? = null,
+        @Query("q") q: String? = null,
+        @Query("min_amount") minAmount: Double? = null,
+        @Query("max_amount") maxAmount: Double? = null,
+        @Query("statement_id") statementId: Long? = null,
+        @Query("sort_by") sortBy: String? = null,
+        @Query("sort_dir") sortDir: String? = null,
     ): TransactionPageDto
 
     @PATCH("transactions/{id}/category")
@@ -72,6 +80,18 @@ interface ArthaApi {
         @Path("id") id: Long,
         @Body body: CategoryUpdateDto,
     ): TransactionDto
+
+    @POST("transactions")
+    suspend fun createTransaction(@Body body: TransactionCreateDto): TransactionDto
+
+    @PATCH("transactions/{id}")
+    suspend fun updateTransaction(
+        @Path("id") id: Long,
+        @Body body: TransactionUpdateDto,
+    ): TransactionDto
+
+    @DELETE("transactions/{id}")
+    suspend fun deleteTransaction(@Path("id") id: Long)
 
     @GET("categories")
     suspend fun getCategories(): CategoriesDto

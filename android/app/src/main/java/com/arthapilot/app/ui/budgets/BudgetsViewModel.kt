@@ -2,11 +2,14 @@ package com.arthapilot.app.ui.budgets
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.arthapilot.app.data.refresh.DataInvalidationBus
+import com.arthapilot.app.data.refresh.NoOpDataInvalidationBus
 import com.arthapilot.app.data.repository.BudgetRepository
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.Budget
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,25 +28,45 @@ data class BudgetsUiState(
 @HiltViewModel
 class BudgetsViewModel @Inject constructor(
     private val budgetRepository: BudgetRepository,
+    private val invalidationBus: DataInvalidationBus,
 ) : ViewModel() {
+
+    constructor(budgetRepository: BudgetRepository) :
+        this(budgetRepository, NoOpDataInvalidationBus)
 
     private val _uiState = MutableStateFlow(BudgetsUiState())
     val uiState: StateFlow<BudgetsUiState> = _uiState.asStateFlow()
 
+    private var lastRevision: Long = invalidationBus.revision.value
+    private var requestId: Long = 0
+    private var refreshJob: Job? = null
+
     init {
         refresh()
+        viewModelScope.launch {
+            invalidationBus.revision.collect { newRevision ->
+                if (newRevision > lastRevision) {
+                    lastRevision = newRevision
+                    refresh(force = true)
+                }
+            }
+        }
     }
 
-    fun refresh() {
-        if (_uiState.value.isLoading) return
-        _uiState.update { it.copy(isLoading = true, error = null) }
-        viewModelScope.launch {
+    fun refresh(force: Boolean = false) {
+        if (!force && _uiState.value.isLoading) return
+        if (force) refreshJob?.cancel()
+        val currentRequestId = ++requestId
+        refreshJob = viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 val budgets = budgetRepository.fetchBudgets()
+                if (currentRequestId != requestId) return@launch
                 _uiState.update { it.copy(budgets = budgets, isLoading = false, offline = false) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
+                if (currentRequestId != requestId) return@launch
                 _uiState.update {
                     it.copy(
                         isLoading = false,

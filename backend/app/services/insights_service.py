@@ -286,6 +286,10 @@ class InsightsService:
         safe_emi = safe_emi_amount(metrics)
         return safe_emi, max_loan_amount(safe_emi)
 
+    # Note: risk_profile returns behaviour-only credit-health bands
+    # (Excellent/Good/Fair/Poor), while risk_assessment combines the
+    # questionnaire tolerance with behaviour and returns appetite bands
+    # (Conservative/Moderate/Aggressive).
     def risk_profile(self, user_id: int) -> RiskProfile:
         metrics = self._risk_metrics(user_id)
         score = score_risk(metrics)
