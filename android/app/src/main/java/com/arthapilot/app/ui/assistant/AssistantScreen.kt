@@ -33,6 +33,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import com.arthapilot.app.ui.theme.RonasColors
+import com.arthapilot.app.ui.theme.RonasCard
+import com.arthapilot.app.ui.theme.RonasPillButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,9 +83,10 @@ fun AssistantScreen(
     }
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Ask your data") },
+                title = { Text("Ask your data", color = RonasColors.TextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },

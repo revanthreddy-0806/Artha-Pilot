@@ -31,6 +31,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import com.arthapilot.app.ui.theme.RonasColors
+import com.arthapilot.app.ui.theme.RonasCard
+import com.arthapilot.app.ui.theme.RonasPillButton
+import com.arthapilot.app.ui.theme.RonasTickStripBar
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -73,9 +77,10 @@ fun BudgetsScreen(
     }
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Budgets") },
+                title = { Text("Budgets", color = RonasColors.TextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },
@@ -108,7 +113,7 @@ fun BudgetsScreen(
                         Text(
                             "Set a monthly limit per category to track overruns",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = RonasColors.TextSecondary,
                         )
                     }
                 }
@@ -125,7 +130,7 @@ fun BudgetsScreen(
                             Text(
                                 text = "Offline · showing last fetched budgets",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = RonasColors.TextSecondary,
                             )
                         }
                     }
@@ -164,7 +169,7 @@ private fun BudgetCard(
     } else {
         MaterialTheme.colorScheme.primary
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -177,7 +182,7 @@ private fun BudgetCard(
                     Text(
                         text = "₹${formatAmount(budget.spent)} of ₹${formatAmount(budget.monthlyLimit)} spent",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = RonasColors.TextSecondary,
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -191,7 +196,7 @@ private fun BudgetCard(
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "Delete ${budget.category} budget",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = RonasColors.TextSecondary,
                         )
                     }
                 }

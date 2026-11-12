@@ -28,6 +28,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import com.arthapilot.app.ui.theme.RonasColors
+import com.arthapilot.app.ui.theme.RonasCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -80,9 +82,10 @@ fun RecommendationScreen(
     }
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Investment Suggestions") },
+                title = { Text("Investment Suggestions", color = RonasColors.TextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },
@@ -152,7 +155,7 @@ fun RecommendationScreen(
 
 @Composable
 private fun InsufficientCard(recommendation: Recommendation) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 text = "Suggestions need more data",
@@ -177,7 +180,7 @@ private fun InsufficientCard(recommendation: Recommendation) {
 @Composable
 private fun SummaryCard(recommendation: Recommendation) {
     val context = recommendation.context ?: return
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 text = "Your suggested mix",
@@ -218,7 +221,7 @@ private fun SummaryRow(label: String, value: String) {
 
 @Composable
 private fun AllocationCard(allocation: List<AllocationItem>) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 text = "Allocation",
@@ -237,9 +240,9 @@ private fun AllocationCard(allocation: List<AllocationItem>) {
 @Composable
 private fun AllocationRow(item: AllocationItem) {
     val color = when (item.label.lowercase()) {
-        "equity" -> Color(0xFF2E7D32)
-        "debt" -> Color(0xFF1565C0)
-        "gold" -> Color(0xFFB8860B)
+        "equity" -> RonasColors.TextPrimary
+        "debt" -> RonasColors.TextSecondary
+        "gold" -> RonasColors.AccentAmber
         else -> MaterialTheme.colorScheme.primary
     }
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -275,7 +278,7 @@ private fun AllocationRow(item: AllocationItem) {
 @Composable
 private fun MarketCard(quotes: List<MarketQuote>) {
     if (quotes.isEmpty()) return
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 text = "Market reference (daily refresh)",
@@ -313,7 +316,7 @@ private fun MarketCard(quotes: List<MarketQuote>) {
 @Composable
 private fun NoteCard(kind: String, text: String) {
     val color = if (kind == "caution") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -358,7 +361,7 @@ private fun WhatIfControls(uiState: RecommendationUiState, viewModel: Recommenda
     var reduction by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Box {
                 OutlinedTextField(
@@ -420,7 +423,7 @@ private fun WhatIfControls(uiState: RecommendationUiState, viewModel: Recommenda
 private fun WhatIfResultCard(result: WhatIfResult) {
     val currentRate = result.original.savingsRate ?: 0.0
     val newRate = result.simulated.savingsRate ?: 0.0
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
                 text = "Result - ${result.category}",

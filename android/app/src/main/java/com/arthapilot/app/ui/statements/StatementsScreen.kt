@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arthapilot.app.domain.model.StatementInfo
+import com.arthapilot.app.ui.theme.RonasColors
+import com.arthapilot.app.ui.theme.RonasCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,9 +58,10 @@ fun StatementsScreen(
     }
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Statements") },
+                title = { Text("Statements", color = RonasColors.TextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },
@@ -215,7 +218,7 @@ fun StatementsScreen(
 
 @Composable
 private fun StatementCard(statement: StatementInfo, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    RonasCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(

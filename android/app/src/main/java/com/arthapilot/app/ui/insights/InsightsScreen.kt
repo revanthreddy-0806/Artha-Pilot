@@ -42,6 +42,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arthapilot.app.domain.model.CategoryBreakdownItem
 import com.arthapilot.app.domain.model.MonthTrend
+import com.arthapilot.app.ui.theme.RonasColors
+import com.arthapilot.app.ui.theme.RonasCard
 import com.arthapilot.app.ui.home.formatAmount
 import java.util.Locale
 
@@ -62,9 +64,10 @@ fun InsightsScreen(
     }
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Insights") },
+                title = { Text("Insights", color = RonasColors.TextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },
@@ -92,7 +95,7 @@ fun InsightsScreen(
                         Text(
                             "Upload a statement to see your monthly picture",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = RonasColors.TextSecondary,
                         )
                     }
                 }
@@ -110,7 +113,7 @@ fun InsightsScreen(
                             Text(
                                 text = "Offline · showing last fetched insights",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = RonasColors.TextSecondary,
                             )
                         }
                     }
@@ -119,7 +122,7 @@ fun InsightsScreen(
                     }
                     if (uiState.trends.isNotEmpty()) {
                         item {
-                            Card(modifier = Modifier.fillMaxWidth()) {
+                            RonasCard(modifier = Modifier.fillMaxWidth()) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
                                         "Monthly trends",
@@ -130,8 +133,8 @@ fun InsightsScreen(
                                     TrendBarChart(trends = uiState.trends)
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                        Legend(color = MaterialTheme.colorScheme.primary, label = "Income")
-                                        Legend(color = MaterialTheme.colorScheme.error, label = "Expenses")
+                                        Legend(color = RonasColors.TextPrimary, label = "Income")
+                                        Legend(color = RonasColors.DeclineRed, label = "Expenses")
                                     }
                                 }
                             }
@@ -139,7 +142,7 @@ fun InsightsScreen(
                     }
                     if (uiState.breakdown.isNotEmpty()) {
                         item {
-                            Card(modifier = Modifier.fillMaxWidth()) {
+                            RonasCard(modifier = Modifier.fillMaxWidth()) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
                                         "Spending by category",
@@ -163,7 +166,7 @@ fun InsightsScreen(
 
 @Composable
 private fun SummaryCard(summary: com.arthapilot.app.domain.model.InsightsSummary) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "Monthly summary",
@@ -174,18 +177,18 @@ private fun SummaryCard(summary: com.arthapilot.app.domain.model.InsightsSummary
             Text(
                 text = "${summary.transactionCount} transactions",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = RonasColors.TextSecondary,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                StatBlock(label = "Income", value = "₹${formatAmount(summary.income)}", color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                StatBlock(label = "Income", value = "₹${formatAmount(summary.income)}", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
                 Spacer(modifier = Modifier.width(12.dp))
-                StatBlock(label = "Expenses", value = "₹${formatAmount(summary.expenses)}", color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                StatBlock(label = "Expenses", value = "₹${formatAmount(summary.expenses)}", color = RonasColors.DeclineRed, modifier = Modifier.weight(1f))
                 Spacer(modifier = Modifier.width(12.dp))
                 StatBlock(
                     label = "Savings",
                     value = "₹${formatAmount(summary.savings)}",
-                    color = if (summary.savings >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    color = if (summary.savings >= 0) RonasColors.TextPrimary else RonasColors.DeclineRed,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -207,7 +210,7 @@ private fun StatBlock(label: String, value: String, color: androidx.compose.ui.g
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = RonasColors.TextSecondary,
         )
         Text(
             text = value,
@@ -246,21 +249,21 @@ private fun TrendBarChart(trends: List<MonthTrend>) {
                             .width(10.dp)
                             .fillMaxHeight(incomeFraction.coerceAtLeast(0.02f))
                             .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(RonasColors.TextPrimary),
                     )
                     Box(
                         modifier = Modifier
                             .width(10.dp)
                             .fillMaxHeight(expenseFraction.coerceAtLeast(0.02f))
                             .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                            .background(MaterialTheme.colorScheme.error),
+                            .background(RonasColors.DeclineRed),
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = trendMonthLabel(trend.month),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = RonasColors.TextSecondary,
                 )
             }
         }
@@ -291,7 +294,7 @@ private fun CategoryBar(item: CategoryBreakdownItem) {
             Text(
                 text = "₹${formatAmount(item.amount)} · ${"%.1f".format(Locale.US, item.percentage)}%",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = RonasColors.TextSecondary,
             )
         }
         Spacer(modifier = Modifier.height(4.dp))

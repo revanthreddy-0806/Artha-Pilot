@@ -25,6 +25,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.arthapilot.app.ui.theme.RonasColors
+import com.arthapilot.app.ui.theme.RonasCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -70,9 +72,10 @@ fun RiskScreen(
     val showingQuestionnaire = uiState.questions != null
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text(if (showingQuestionnaire) "Risk Appetite" else "Credit Health") },
+                title = { Text(if (showingQuestionnaire) "Risk Appetite" else "Credit Health", color = RonasColors.TextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },
@@ -221,7 +224,7 @@ private fun QuestionCard(
     selectedOptionId: String?,
     onSelect: (String) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = question.text,
@@ -255,7 +258,7 @@ private fun QuestionCard(
 @Composable
 private fun ScoreCard(profile: RiskProfile) {
     val color = bandColor(profile.band)
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -299,7 +302,7 @@ private fun ScoreCard(profile: RiskProfile) {
 
 @Composable
 private fun ToleranceCard(profile: RiskProfile) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "What makes up this score",
@@ -355,7 +358,7 @@ private fun ToleranceCell(label: String, value: String, detail: String, modifier
 
 @Composable
 private fun LoanCard(profile: RiskProfile) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "Loan eligibility estimate",
@@ -416,7 +419,7 @@ private fun LoanCard(profile: RiskProfile) {
 @Composable
 private fun FactorRow(factor: RiskFactor) {
     val color = when (factor.impact) {
-        "positive" -> Color(0xFF2E7D32)
+        "positive" -> RonasColors.GrowthGreen
         "negative" -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -451,8 +454,8 @@ private fun FactorRow(factor: RiskFactor) {
 
 @Composable
 private fun bandColor(band: String): Color = when (band) {
-    "Aggressive" -> Color(0xFF2E7D32)
-    "Moderate" -> Color(0xFF558B2F)
-    "Conservative" -> Color(0xFFF9A825)
+    "Aggressive" -> RonasColors.GrowthGreen
+    "Moderate" -> RonasColors.AccentAmber
+    "Conservative" -> RonasColors.AccentAmber
     else -> MaterialTheme.colorScheme.error
 }

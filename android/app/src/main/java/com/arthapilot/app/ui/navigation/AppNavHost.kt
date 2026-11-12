@@ -1,5 +1,6 @@
 package com.arthapilot.app.ui.navigation
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -12,7 +13,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.ui.graphics.Color
+import com.arthapilot.app.ui.theme.RonasColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -108,11 +113,23 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
     val currentRoute = backStackEntry?.destination?.route
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         bottomBar = {
             if (currentRoute in TAB_ROUTES) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = Color(0xFF0C0E0F),
+                    tonalElevation = 0.dp,
+                    modifier = Modifier.border(1.dp, RonasColors.BorderSubtle),
+                ) {
                     BOTTOM_TABS.forEach { tab ->
                         NavigationBarItem(
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = RonasColors.TextPrimary,
+                                selectedTextColor = RonasColors.TextPrimary,
+                                unselectedIconColor = RonasColors.DividerMuted,
+                                unselectedTextColor = RonasColors.DividerMuted,
+                                indicatorColor = RonasColors.SurfaceElevated,
+                            ),
                             selected = currentRoute == tab.route,
                             onClick = {
                                 navController.navigate(tab.route) {

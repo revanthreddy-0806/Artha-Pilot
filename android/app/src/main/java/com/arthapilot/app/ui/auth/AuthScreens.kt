@@ -17,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import com.arthapilot.app.ui.theme.RonasColors
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
@@ -161,7 +162,7 @@ private fun AuthScaffold(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RonasColors.BgCanvas) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
@@ -174,6 +175,7 @@ private fun AuthScaffold(
                     text = title,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
+                    color = RonasColors.TextPrimary,
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Column(

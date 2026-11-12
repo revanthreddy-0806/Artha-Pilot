@@ -58,6 +58,13 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arthapilot.app.domain.model.Alert
 import com.arthapilot.app.domain.model.Transaction
+import com.arthapilot.app.ui.theme.RonasColors
+import com.arthapilot.app.ui.theme.RonasCard
+import com.arthapilot.app.ui.theme.RonasPillButton
+import com.arthapilot.app.ui.theme.RonasMetricItem
+import com.arthapilot.app.ui.theme.RonasCircularBadge
+import com.arthapilot.app.ui.theme.RonasCategoryTable
+import com.arthapilot.app.ui.theme.RonasCategoryRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,15 +98,15 @@ fun HomeScreen(
     }
 
     Scaffold(
+        containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Transactions") },
+                title = { Text("Portfolio", color = RonasColors.TextPrimary) },
                 actions = {
-                    IconButton(onClick = { showCreateDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add transaction")
-                    }
+                    RonasPillButton(text = "+ Add txn", onClick = { showCreateDialog = true })
+                    Spacer(modifier = Modifier.width(8.dp))
                     IconButton(onClick = onStatementsClick) {
-                        Icon(Icons.Default.History, contentDescription = "Statement history")
+                        Icon(Icons.Default.History, contentDescription = "Statement history", tint = RonasColors.TextPrimary)
                     }
                     IconButton(onClick = viewModel::refresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
@@ -117,133 +124,217 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = viewModel::setSearchQuery,
-                label = { Text("Search transactions") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (uiState.searchQuery.isNotBlank()) {
-                        IconButton(onClick = viewModel::clearSearch) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
+        val totalIncome = uiState.transactions.filter { it.transactionType == "credit" }.sumOf { it.amount }
+        val totalExpenses = uiState.transactions.filter { it.transactionType == "debit" }.sumOf { it.amount }
+        val netFlow = totalIncome - totalExpenses
+        val dotColors = listOf(
+            RonasColors.TextPrimary,
+            RonasColors.TextSecondary,
+            RonasColors.TextMuted,
+            RonasColors.DividerMuted,
+            RonasColors.BorderSubtle,
+        )
+        val categoryRows = uiState.transactions
+            .groupBy { it.category to it.transactionType }
+            .map { (key, txs) ->
+                RonasCategoryRow(
+                    label = key.first,
+                    transactionType = key.second,
+                    amount = txs.sumOf { it.amount },
+                )
+            }
+
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            item {
+                RonasCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Portfolio summary",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = RonasColors.TextPrimary,
+                            maxLines = 1,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            RonasMetricItem(
+                                label = "Income",
+                                value = "₹${"%.0f".format(totalIncome)}",
+                                indicator = "↑",
+                                indicatorColor = RonasColors.GrowthGreen,
+                                modifier = Modifier.weight(1f),
+                            )
+                            RonasMetricItem(
+                                label = "Expenses",
+                                value = "₹${"%.0f".format(totalExpenses)}",
+                                indicator = "↓",
+                                indicatorColor = RonasColors.DeclineRed,
+                                modifier = Modifier.weight(1f),
+                            )
+                            RonasMetricItem(
+                                label = "Net flow",
+                                value = "₹${"%.0f".format(netFlow)}",
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     }
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            )
+                }
+            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = uiState.transactionTypeFilter == null,
-                    onClick = { viewModel.setTransactionTypeFilter(null) },
-                    label = { Text("All") },
-                )
-                FilterChip(
-                    selected = uiState.transactionTypeFilter == "credit",
-                    onClick = { viewModel.setTransactionTypeFilter("credit") },
-                    label = { Text("Income") },
-                )
-                FilterChip(
-                    selected = uiState.transactionTypeFilter == "debit",
-                    onClick = { viewModel.setTransactionTypeFilter("debit") },
-                    label = { Text("Expense") },
-                )
-                FilterChip(
-                    selected = false,
-                    onClick = viewModel::clearFilters,
-                    label = { Text("Clear filters") },
+            if (categoryRows.isNotEmpty()) {
+                item {
+                    RonasCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Category breakdown",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = RonasColors.TextPrimary,
+                                maxLines = 1,
+                            )
+                            RonasCategoryTable(rows = categoryRows)
+                        }
+                    }
+                }
+            }
+
+            item {
+                OutlinedTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = viewModel::setSearchQuery,
+                    label = { Text("Search transactions") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (uiState.searchQuery.isNotBlank()) {
+                            IconButton(onClick = viewModel::clearSearch) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = uiState.minAmount,
-                    onValueChange = viewModel::setMinAmount,
-                    label = { Text("Min") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = uiState.maxAmount,
-                    onValueChange = viewModel::setMaxAmount,
-                    label = { Text("Max") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = viewModel::applyAmountFilters) { Text("Apply") }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = uiState.transactionTypeFilter == null,
+                        onClick = { viewModel.setTransactionTypeFilter(null) },
+                        label = { Text("All") },
+                    )
+                    FilterChip(
+                        selected = uiState.transactionTypeFilter == "credit",
+                        onClick = { viewModel.setTransactionTypeFilter("credit") },
+                        label = { Text("Income") },
+                    )
+                    FilterChip(
+                        selected = uiState.transactionTypeFilter == "debit",
+                        onClick = { viewModel.setTransactionTypeFilter("debit") },
+                        label = { Text("Expense") },
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = viewModel::clearFilters,
+                        label = { Text("Clear filters") },
+                    )
+                }
             }
 
-            CategoryFilterRow(
-                options = uiState.categoryOptions,
-                selected = uiState.categoryFilter,
-                onSelect = viewModel::setCategoryFilter,
-            )
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = uiState.minAmount,
+                        onValueChange = viewModel::setMinAmount,
+                        label = { Text("Min") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = uiState.maxAmount,
+                        onValueChange = viewModel::setMaxAmount,
+                        label = { Text("Max") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = viewModel::applyAmountFilters) { Text("Apply") }
+                }
+            }
+
+            item {
+                CategoryFilterRow(
+                    options = uiState.categoryOptions,
+                    selected = uiState.categoryFilter,
+                    onSelect = viewModel::setCategoryFilter,
+                )
+            }
 
             if (uiState.alerts.isNotEmpty()) {
-                AlertsSection(alerts = uiState.alerts)
+                item { AlertsSection(alerts = uiState.alerts) }
             }
 
             when {
                 uiState.isLoading && uiState.transactions.isEmpty() -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                uiState.transactions.isEmpty() -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("No transactions yet", style = MaterialTheme.typography.titleMedium)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = onUploadClick) { Text("Upload a statement") }
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
                         }
                     }
                 }
-
+                uiState.transactions.isEmpty() -> {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("No transactions yet", style = MaterialTheme.typography.titleMedium)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(onClick = onUploadClick) { Text("Upload a statement") }
+                            }
+                        }
+                    }
+                }
                 else -> {
                     if (uiState.offline) {
-                        Text(
-                            text = "Offline · showing cached transactions",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                    }
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        items(uiState.transactions, key = { it.id }) { transaction ->
-                            TransactionCard(
-                                transaction = transaction,
-                                onClick = { selectedTransaction = transaction },
-                                onEdit = { editingTransaction = transaction },
-                                onDelete = { transactionToDelete = transaction },
+                        item {
+                            Text(
+                                text = "Offline showing cached transactions",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                             )
                         }
-                        if (uiState.hasMore) {
-                            item {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.height(24.dp))
-                                }
-                                LaunchedEffect(Unit) { viewModel.loadMore() }
+                    }
+                    items(uiState.transactions, key = { it.id }) { transaction ->
+                        TransactionCard(
+                            transaction = transaction,
+                            onClick = { selectedTransaction = transaction },
+                            onEdit = { editingTransaction = transaction },
+                            onDelete = { transactionToDelete = transaction },
+                        )
+                    }
+                    if (uiState.hasMore) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.height(24.dp))
                             }
+                            LaunchedEffect(Unit) { viewModel.loadMore() }
                         }
                     }
                 }
             }
         }
+
     }
 
     selectedTransaction?.let { transaction ->
@@ -392,8 +483,8 @@ private fun TransactionCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp),
+    RonasCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -423,9 +514,9 @@ private fun TransactionCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = if (transaction.transactionType == "credit") {
-                    MaterialTheme.colorScheme.primary
+                    RonasColors.GrowthGreen
                 } else {
-                    MaterialTheme.colorScheme.error
+                    RonasColors.TextPrimary
                 },
             )
         }
