@@ -163,6 +163,7 @@ fun HomeScreen(
                             RonasMetricItem(
                                 label = "Income",
                                 value = "₹${"%.0f".format(totalIncome)}",
+                                valueColor = RonasColors.GrowthGreen,
                                 indicator = "↑",
                                 indicatorColor = RonasColors.GrowthGreen,
                                 modifier = Modifier.weight(1f),
@@ -170,6 +171,7 @@ fun HomeScreen(
                             RonasMetricItem(
                                 label = "Expenses",
                                 value = "₹${"%.0f".format(totalExpenses)}",
+                                valueColor = RonasColors.DeclineRed,
                                 indicator = "↓",
                                 indicatorColor = RonasColors.DeclineRed,
                                 modifier = Modifier.weight(1f),
@@ -516,7 +518,7 @@ private fun TransactionCard(
                 color = if (transaction.transactionType == "credit") {
                     RonasColors.GrowthGreen
                 } else {
-                    RonasColors.TextPrimary
+                    RonasColors.DeclineRed
                 },
             )
         }

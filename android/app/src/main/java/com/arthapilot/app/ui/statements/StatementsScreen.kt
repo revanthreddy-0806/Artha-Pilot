@@ -192,9 +192,9 @@ fun StatementsScreen(
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium,
                                             color = if (transaction.transactionType == "credit") {
-                                                MaterialTheme.colorScheme.primary
+                                                RonasColors.GrowthGreen
                                             } else {
-                                                MaterialTheme.colorScheme.error
+                                                RonasColors.DeclineRed
                                             },
                                         )
                                     }

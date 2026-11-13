@@ -118,6 +118,7 @@ fun RonasMetricItem(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    valueColor: Color = RonasColors.TextPrimary,
     indicator: String? = null,
     indicatorColor: Color = RonasColors.GrowthGreen,
 ) {
@@ -130,7 +131,7 @@ fun RonasMetricItem(
         )
         Text(
             text = value,
-            color = RonasColors.TextPrimary,
+            color = valueColor,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
