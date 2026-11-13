@@ -13,19 +13,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -341,7 +345,8 @@ private fun BudgetDetailSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var editLimitText by remember { mutableStateOf(budget.monthlyLimit.toString()) }
     var showEdit by remember { mutableStateOf(false) }
-    var filterTab by remember { mutableStateOf(2) } // 0 current, 1 prev, 2 both
+    var selectedFilter by remember { mutableStateOf("all") } // "all", "this", "prev", or "YYYY-MM"
+    var filterExpanded by remember { mutableStateOf(false) }
 
     val currMonth = remember(transactions, budget) {
         val categoryTxns = transactions.filter { t -> t.transactionType == "debit" && t.category.equals(budget.category, ignoreCase = true) }
@@ -430,32 +435,75 @@ private fun BudgetDetailSheet(
                 Button(onClick = { editLimitText.toDoubleOrNull()?.let { onEdit(it) } }, modifier = Modifier.fillMaxWidth()) { Text("Save") }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            // Filter pills
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Current Month (${currTxns.size})", "Previous Month (${prevTxns.size})", "Both Months").forEachIndexed { idx, label ->
-                    Surface(onClick = { filterTab = idx }, color = if (filterTab == idx) RonasColors.SurfaceElevated else RonasColors.BgCanvas, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (filterTab == idx) RonasColors.GrowthGreen else RonasColors.BorderSubtle)) {
-                        Text(text = label, color = if (filterTab == idx) RonasColors.GrowthGreen else RonasColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+// Spent Transactions header + filter icon
+            val allCatTxns = transactions.filter { t -> t.transactionType == "debit" && t.category.equals(budget.category, ignoreCase = true) }
+            val allMonths = allCatTxns.map { it.date.take(7) }.distinct().sortedDescending()
+            val totalCount = allCatTxns.size
+            val currCount = currTxns.size
+            val prevCount = prevTxns.size
+            val filterLabel = when (selectedFilter) {
+                "all" -> "All Months"
+                "this" -> currLabel
+                "prev" -> prevLabel
+                else -> trendMonthLabel(selectedFilter)
+            }
+            val filteredCount = when (selectedFilter) {
+                "all" -> totalCount
+                "this" -> currCount
+                "prev" -> prevCount
+                else -> allCatTxns.count { it.date.startsWith(selectedFilter) }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "Spent Transactions", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = "Filter: $filterLabel \u2022 $filteredCount transactions", fontSize = 12.sp, color = RonasColors.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Box {
+                    Surface(onClick = { filterExpanded = true }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = Modifier.size(36.dp)) {
+                        Icon(imageVector = Icons.Default.FilterList, contentDescription = "Filter transactions", tint = if (selectedFilter == "all") RonasColors.TextPrimary else RonasColors.GrowthGreen, modifier = Modifier.padding(8.dp))
+                    }
+                    DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }, containerColor = RonasColors.SurfaceElevated, border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                        // All Months
+                        DropdownMenuItem(text = { Text("All Months ($totalCount)", color = if (selectedFilter == "all") RonasColors.GrowthGreen else RonasColors.TextPrimary, fontWeight = if (selectedFilter == "all") FontWeight.SemiBold else FontWeight.Medium) }, onClick = { selectedFilter = "all"; filterExpanded = false }, trailingIcon = if (selectedFilter == "all") { { Icon(Icons.Default.Check, contentDescription = null, tint = RonasColors.GrowthGreen, modifier = Modifier.size(16.dp)) } } else null)
+                        // This Month
+                        DropdownMenuItem(text = { Text("This Month ($currLabel) ($currCount)", color = if (selectedFilter == "this") RonasColors.GrowthGreen else RonasColors.TextPrimary, fontWeight = if (selectedFilter == "this") FontWeight.SemiBold else FontWeight.Medium) }, onClick = { selectedFilter = "this"; filterExpanded = false }, trailingIcon = if (selectedFilter == "this") { { Icon(Icons.Default.Check, contentDescription = null, tint = RonasColors.GrowthGreen, modifier = Modifier.size(16.dp)) } } else null)
+                        // Previous Month
+                        DropdownMenuItem(text = { Text("Previous Month ($prevLabel) ($prevCount)", color = if (selectedFilter == "prev") RonasColors.GrowthGreen else RonasColors.TextPrimary, fontWeight = if (selectedFilter == "prev") FontWeight.SemiBold else FontWeight.Medium) }, onClick = { selectedFilter = "prev"; filterExpanded = false }, trailingIcon = if (selectedFilter == "prev") { { Icon(Icons.Default.Check, contentDescription = null, tint = RonasColors.GrowthGreen, modifier = Modifier.size(16.dp)) } } else null)
+                        HorizontalDivider(color = RonasColors.BorderSubtle, thickness = 1.dp)
+                        Text(text = "Select Specific Month", fontSize = 11.sp, color = RonasColors.TextMuted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                        allMonths.forEach { m ->
+                            val cnt = allCatTxns.count { it.date.startsWith(m) }
+                            DropdownMenuItem(text = { Text("${trendMonthLabel(m)} ($cnt txns)", color = if (selectedFilter == m) RonasColors.GrowthGreen else RonasColors.TextPrimary, fontWeight = if (selectedFilter == m) FontWeight.SemiBold else FontWeight.Medium) }, onClick = { selectedFilter = m; filterExpanded = false }, trailingIcon = if (selectedFilter == m) { { Icon(Icons.Default.Check, contentDescription = null, tint = RonasColors.GrowthGreen, modifier = Modifier.size(16.dp)) } } else null)
+                        }
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
             // Transaction lists
-            if (filterTab == 0) {
-                Text(text = "Current Month ($currLabel) \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
-                TxnList(txns = currTxns, emptyMsg = "No spent transactions in $currLabel for ${budget.category}.")
-            } else if (filterTab == 1) {
-                Text(text = "Previous Month ($prevLabel) \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
-                TxnList(txns = prevTxns, emptyMsg = "No spent transactions in $prevLabel for ${budget.category}.")
-            } else {
-                val allCatTxns = transactions.filter { t -> t.transactionType == "debit" && t.category.equals(budget.category, ignoreCase = true) }
-                val allMonths = allCatTxns.map { it.date.take(7) }.distinct().sortedDescending()
-                if (allMonths.isEmpty()) {
-                    Text(text = "No spent transactions for ${budget.category}.", fontSize = 12.sp, color = RonasColors.TextMuted)
-                } else {
-                    allMonths.forEach { m ->
-                        val mTxns = allCatTxns.filter { it.date.startsWith(m) }
-                        Text(text = "${trendMonthLabel(m)} \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
-                        TxnList(txns = mTxns, emptyMsg = "No spent transactions in ${trendMonthLabel(m)} for ${budget.category}.")
+            when (selectedFilter) {
+                "this" -> {
+                    Text(text = "Current Month ($currLabel) \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                    TxnList(txns = currTxns, emptyMsg = "No spent transactions in $currLabel for ${budget.category}.")
+                }
+                "prev" -> {
+                    Text(text = "Previous Month ($prevLabel) \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                    TxnList(txns = prevTxns, emptyMsg = "No spent transactions in $prevLabel for ${budget.category}.")
+                }
+                "all" -> {
+                    if (allMonths.isEmpty()) {
+                        Text(text = "No spent transactions for ${budget.category}.", fontSize = 12.sp, color = RonasColors.TextMuted)
+                    } else {
+                        allMonths.forEach { m ->
+                            val mTxns = allCatTxns.filter { it.date.startsWith(m) }
+                            Text(text = "${trendMonthLabel(m)} \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                            TxnList(txns = mTxns, emptyMsg = "No spent transactions in ${trendMonthLabel(m)} for ${budget.category}.")
+                        }
                     }
+                }
+                else -> {
+                    val mTxns = allCatTxns.filter { it.date.startsWith(selectedFilter) }
+                    Text(text = "${trendMonthLabel(selectedFilter)} \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                    TxnList(txns = mTxns, emptyMsg = "No spent transactions in ${trendMonthLabel(selectedFilter)} for ${budget.category}.")
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
