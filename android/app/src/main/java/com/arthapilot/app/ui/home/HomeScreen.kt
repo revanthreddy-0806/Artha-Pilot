@@ -101,7 +101,7 @@ fun HomeScreen(
         containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Portfolio", color = RonasColors.TextPrimary) },
+                title = { Text("ArthaPilot", color = RonasColors.TextPrimary) },
                 actions = {
                     RonasPillButton(text = "+ Add txn", onClick = { showCreateDialog = true })
                     Spacer(modifier = Modifier.width(8.dp))
@@ -153,7 +153,7 @@ fun HomeScreen(
                 RonasCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "Portfolio summary",
+                            text = "Cashflow summary",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = RonasColors.TextPrimary,
@@ -190,13 +190,6 @@ fun HomeScreen(
                 item {
                     RonasCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(
-                                text = "Category breakdown",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = RonasColors.TextPrimary,
-                                maxLines = 1,
-                            )
                             RonasCategoryTable(rows = categoryRows)
                         }
                     }
