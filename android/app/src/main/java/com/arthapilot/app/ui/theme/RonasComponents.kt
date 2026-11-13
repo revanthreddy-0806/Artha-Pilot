@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -293,64 +294,80 @@ fun RonasDualBarChart(
     primaryValues: List<Float>,
     secondaryValues: List<Float>,
     modifier: Modifier = Modifier,
+    selectedIndex: Int = -1,
+    onBarSelected: ((Int) -> Unit)? = null,
 ) {
-    val maxValue = (primaryValues + secondaryValues).maxOrNull()?.coerceAtLeast(1f) ?: 1f
-    Canvas(modifier = modifier.fillMaxWidth().height(180.dp)) {
-        val barWidth = 10.dp.toPx()
-        val groupSpacing = 24.dp.toPx()
-        val bottomPadding = 24.dp.toPx()
-        val chartHeight = size.height - bottomPadding
-        val groups = months.size.coerceAtLeast(1)
-        val totalWidth = groups * (barWidth * 2 + groupSpacing)
-        val startX = (size.width - totalWidth).coerceAtLeast(0f) / 2f
-
-        // Dashed guide lines.
-        val guides = 4
-        for (i in 0..guides) {
-            val y = chartHeight - (chartHeight / guides * i)
-            var x = 0f
-            while (x < size.width) {
-                drawRect(
-                    color = RonasColors.DividerMuted,
-                    topLeft = Offset(x, y),
-                    size = Size(6.dp.toPx(), 1.dp.toPx()),
-                )
-                x += 12.dp.toPx()
+    val maxValue = ((primaryValues + secondaryValues).maxOrNull() ?: 1f).coerceAtLeast(1f)
+    val chartHeight = 180.dp
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(chartHeight),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            months.forEachIndexed { index, month ->
+                val selected = index == selectedIndex
+                val primary = primaryValues.getOrElse(index) { 0f }
+                val secondary = secondaryValues.getOrElse(index) { 0f }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(enabled = onBarSelected != null) { onBarSelected?.invoke(index) }
+                        .background(
+                            if (selected) RonasColors.SurfaceElevated else androidx.compose.ui.graphics.Color.Transparent,
+                            RoundedCornerShape(8.dp),
+                        )
+                        .padding(horizontal = 2.dp, vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(chartHeight * 0.85f),
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(8.dp)
+                                    .fillMaxHeight((primary / maxValue).coerceIn(0f, 1f).coerceAtLeast(0.02f))
+                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                    .background(RonasColors.TextPrimary),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(8.dp)
+                                    .fillMaxHeight((secondary / maxValue).coerceIn(0f, 1f).coerceAtLeast(0.02f))
+                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                    .background(RonasColors.DeclineRed),
+                            )
+                        }
+                    }
+                }
             }
         }
-
-        months.forEachIndexed { index, month ->
-            val groupX = startX + index * (barWidth * 2 + groupSpacing)
-            val primary = primaryValues.getOrElse(index) { 0f }
-            val secondary = secondaryValues.getOrElse(index) { 0f }
-            val primaryHeight = chartHeight * (primary / maxValue)
-            val secondaryHeight = chartHeight * (secondary / maxValue)
-
-            drawRect(
-                color = RonasColors.TextPrimary,
-                topLeft = Offset(groupX, chartHeight - primaryHeight),
-                size = Size(barWidth, primaryHeight),
-            )
-            drawRect(
-                color = RonasColors.DividerMuted,
-                topLeft = Offset(groupX + barWidth + 4.dp.toPx(), chartHeight - secondaryHeight),
-                size = Size(barWidth, secondaryHeight),
-            )
-        }
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        months.forEach { month ->
-            Text(
-                text = month,
-                color = RonasColors.TextMuted,
-                fontSize = 10.sp,
-                maxLines = 1,
-                softWrap = false,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            months.forEachIndexed { index, month ->
+                val selected = index == selectedIndex
+                Text(
+                    text = month,
+                    color = if (selected) RonasColors.TextPrimary else RonasColors.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
         }
     }
 }

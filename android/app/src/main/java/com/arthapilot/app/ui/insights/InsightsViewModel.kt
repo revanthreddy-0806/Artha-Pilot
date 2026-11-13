@@ -26,6 +26,7 @@ data class InsightsUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val offline: Boolean = false,
+    val categoriesByMonth: Map<String, List<CategoryBreakdownItem>> = emptyMap(),
 )
 
 @HiltViewModel
@@ -66,6 +67,14 @@ class InsightsViewModel @Inject constructor(
                 val summary = insightsRepository.fetchSummary(null)
                 val trends = insightsRepository.fetchMonthlyTrends(6)
                 val breakdown = insightsRepository.fetchCategoryBreakdown(null)
+                val categoriesByMonth = mutableMapOf<String, List<CategoryBreakdownItem>>()
+                trends.forEach { t ->
+                    categoriesByMonth[t.month] = insightsRepository.fetchCategoryBreakdown(t.month)
+                }
+                if (trends.isNotEmpty()) {
+                    val firstPrev = previousMonth(trends.first().month)
+                    categoriesByMonth[firstPrev] = insightsRepository.fetchCategoryBreakdown(firstPrev)
+                }
                 if (currentRequestId != requestId) return@launch
                 _uiState.update {
                     it.copy(
@@ -74,6 +83,7 @@ class InsightsViewModel @Inject constructor(
                         breakdown = breakdown,
                         isLoading = false,
                         offline = false,
+                        categoriesByMonth = categoriesByMonth,
                     )
                 }
             } catch (e: CancellationException) {
@@ -92,4 +102,18 @@ class InsightsViewModel @Inject constructor(
     }
 
     fun onErrorDismissed() = _uiState.update { it.copy(error = null) }
+}
+
+internal fun previousMonth(month: String): String {
+    val parts = month.split("-")
+    if (parts.size != 2) return month
+    val year = parts[0].toIntOrNull() ?: return month
+    val m = parts[1].toIntOrNull() ?: return month
+    var y = year
+    var nm = m - 1
+    if (nm < 1) {
+        nm = 12
+        y -= 1
+    }
+    return "%04d-%02d".format(y, nm)
 }
