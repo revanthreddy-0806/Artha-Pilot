@@ -86,10 +86,17 @@ fun InsightsScreen(
     }
 
     var selectedMonth by remember { mutableStateOf<String?>(null) }
+    var compareMonth by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(uiState.trends) {
         if (selectedMonth == null || uiState.trends.none { it.month == selectedMonth }) {
             selectedMonth = uiState.trends.lastOrNull { it.income > 0.0 || it.expenses > 0.0 }?.month
                 ?: uiState.trends.lastOrNull()?.month
+        }
+        if (compareMonth == null || uiState.trends.none { it.month == compareMonth }) {
+            // default to immediately preceding month
+            val sel = selectedMonth
+            val idx = uiState.trends.indexOfFirst { it.month == sel }
+            compareMonth = if (idx > 0) uiState.trends[idx - 1].month else uiState.trends.getOrNull(uiState.trends.size - 2)?.month ?: uiState.trends.firstOrNull()?.month
         }
     }
 
@@ -102,6 +109,8 @@ fun InsightsScreen(
     var filterExpanded by remember { mutableStateOf(false) }
 
     val selectedTrend = uiState.trends.firstOrNull { it.month == selectedMonth }
+    val compareMonthRaw = compareMonth ?: ""
+    val compareTrend = uiState.trends.firstOrNull { it.month == compareMonthRaw }
     val prevMonthRaw = selectedMonth?.let { previousMonth(it) } ?: ""
     val prevTrend = uiState.trends.firstOrNull { it.month == prevMonthRaw }
     val selectedIndex = uiState.trends.indexOfFirst { it.month == selectedMonth }
@@ -187,31 +196,40 @@ fun InsightsScreen(
                                         secondaryValues = uiState.trends.map { it.expenses.toFloat() },
                                         selectedIndex = selectedIndex,
                                         onBarSelected = { idx ->
-                                            uiState.trends.getOrNull(idx)?.month?.let { selectedMonth = it }
+                                            uiState.trends.getOrNull(idx)?.month?.let { m ->
+                                                selectedMonth = m
+                                                val i = uiState.trends.indexOfFirst { it.month == m }
+                                                compareMonth = if (i > 0) uiState.trends[i - 1].month else uiState.trends.getOrNull(uiState.trends.size - 2)?.month ?: uiState.trends.firstOrNull()?.month
+                                            }
                                         },
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Row(
-                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     ) {
                                         uiState.trends.forEach { trend ->
                                             val sel = trend.month == selectedMonth
                                             Surface(
-                                                onClick = { selectedMonth = trend.month },
+                                                onClick = {
+                                                    selectedMonth = trend.month
+                                                    val i = uiState.trends.indexOfFirst { it.month == trend.month }
+                                                    compareMonth = if (i > 0) uiState.trends[i - 1].month else uiState.trends.getOrNull(uiState.trends.size - 2)?.month ?: uiState.trends.firstOrNull()?.month
+                                                },
                                                 color = if (sel) RonasColors.SurfaceElevated else RonasColors.BgCanvas,
                                                 shape = RoundedCornerShape(20.dp),
                                                 border = androidx.compose.foundation.BorderStroke(
                                                     1.dp,
                                                     if (sel) RonasColors.GrowthGreen else RonasColors.BorderSubtle,
                                                 ),
+                                                modifier = Modifier.weight(1f),
                                             ) {
                                                 Text(
                                                     text = trendMonthLabel(trend.month),
                                                     color = if (sel) RonasColors.GrowthGreen else RonasColors.TextSecondary,
-                                                    fontSize = 12.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Medium,
-                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                    maxLines = 1,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                                                 )
                                             }
                                         }
@@ -228,41 +246,22 @@ fun InsightsScreen(
                             MonthlyPerformanceCard(
                                 selectedMonth = selectedMonth,
                                 selectedTrend = selectedTrend,
-                                prevMonthRaw = prevMonthRaw,
-                                prevTrend = prevTrend,
+                                compareMonthRaw = compareMonthRaw,
+                                compareTrend = compareTrend,
                                 latestActiveMonth = latestActiveMonth,
                                 onJump = { latestActiveMonth?.let { selectedMonth = it } },
                             )
                         }
                     }
-                    if (uiState.breakdown.isNotEmpty()) {
-                        item {
-                            RonasCard(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        "Spending by category",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        color = RonasColors.TextPrimary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    uiState.breakdown.take(6).forEach { item ->
-                                        CategoryBar(item = item)
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (selectedMonth != null) {
+                    if (selectedMonth != null && compareMonth != null) {
                         item {
                             CategoryMoMCard(
                                 selectedMonth = selectedMonth!!,
-                                currItems = uiState.categoriesByMonth[selectedMonth] ?: emptyList(),
-                                prevItems = uiState.categoriesByMonth[prevMonthRaw] ?: emptyList(),
+                                compareMonth = compareMonth!!,
+                                onSelectedMonthChange = { selectedMonth = it },
+                                onCompareMonthChange = { compareMonth = it },
+                                categoriesByMonth = uiState.categoriesByMonth,
+                                availableMonths = (uiState.trends.map { it.month } + uiState.categoriesByMonth.keys).distinct().sorted(),
                                 sortMode = sortMode,
                                 onSortChange = { sortMode = it },
                                 filterExpanded = filterExpanded,
@@ -339,18 +338,18 @@ private fun SummaryCard(
 private fun MonthlyPerformanceCard(
     selectedMonth: String?,
     selectedTrend: MonthTrend?,
-    prevMonthRaw: String,
-    prevTrend: MonthTrend?,
+    compareMonthRaw: String,
+    compareTrend: MonthTrend?,
     latestActiveMonth: String?,
     onJump: () -> Unit,
 ) {
     if (selectedMonth == null) return
     val monthLabel = trendMonthLabel(selectedMonth)
-    val prevLabel = trendMonthLabel(prevMonthRaw)
+    val compLabel = trendMonthLabel(compareMonthRaw)
     RonasCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "$monthLabel Performance • vs $prevLabel",
+                text = "$monthLabel Performance \u2022 vs $compLabel",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp,
@@ -366,7 +365,7 @@ private fun MonthlyPerformanceCard(
                 val expenses = trend.expenses
                 val savings = trend.savings
                 val savingsRate = if (income > 0) (income - expenses) / income * 100.0 else 0.0
-                val prevExpenses = prevTrend?.expenses ?: 0.0
+                val prevExpenses = compareTrend?.expenses ?: 0.0
                 val deltaPercent = if (prevExpenses > 0) (expenses - prevExpenses) / prevExpenses * 100.0 else 0.0
                 val deltaText = when {
                     prevExpenses <= 0.0 && expenses > 0.0 -> "New"
@@ -459,20 +458,26 @@ private data class CatMoMRow(
 @Composable
 private fun CategoryMoMCard(
     selectedMonth: String,
-    currItems: List<CategoryBreakdownItem>,
-    prevItems: List<CategoryBreakdownItem>,
+    compareMonth: String,
+    onSelectedMonthChange: (String) -> Unit,
+    onCompareMonthChange: (String) -> Unit,
+    categoriesByMonth: Map<String, List<CategoryBreakdownItem>>,
+    availableMonths: List<String>,
     sortMode: CategorySort,
     onSortChange: (CategorySort) -> Unit,
     filterExpanded: Boolean,
     onFilterExpandedChange: (Boolean) -> Unit,
 ) {
-    val monthLabel = trendMonthLabel(selectedMonth)
-    val prevLabel = trendMonthLabel(previousMonth(selectedMonth))
+    val monthALabel = trendMonthLabel(selectedMonth)
+    val monthBLabel = trendMonthLabel(compareMonth)
+    val currItems = categoriesByMonth[selectedMonth] ?: emptyList()
+    val compItems = categoriesByMonth[compareMonth] ?: emptyList()
     val currMap = currItems.associate { it.category to it.amount }
-    val prevMap = prevItems.associate { it.category to it.amount }
-    val names = (currMap.keys + prevMap.keys).distinct()
-    val rows = names.map { CatMoMRow(it, currMap[it] ?: 0.0, prevMap[it] ?: 0.0) }
+    val compMap = compItems.associate { it.category to it.amount }
+    val names = (currMap.keys + compMap.keys).distinct()
+    val rows = names.map { CatMoMRow(it, currMap[it] ?: 0.0, compMap[it] ?: 0.0) }
     val totalCurr = rows.sumOf { it.curr }.coerceAtLeast(0.001)
+    val totalComp = rows.sumOf { it.prev }.coerceAtLeast(0.001)
     val sorted = when (sortMode) {
         CategorySort.HighestSpend -> rows.sortedByDescending { it.curr }
         CategorySort.LowestSpend -> rows.sortedBy { it.curr }
@@ -481,167 +486,120 @@ private fun CategoryMoMCard(
         CategorySort.AZ -> rows.sortedBy { it.name.lowercase() }
     }
 
+    var monthAMenuExpanded by remember { mutableStateOf(false) }
+    var monthBMenuExpanded by remember { mutableStateOf(false) }
+
     RonasCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Header row
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "$monthLabel Category Spending",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = RonasColors.TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "vs $prevLabel",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = RonasColors.TextSecondary,
-                    )
+                    Text(text = "Category Spending Comparison", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = "Compare any two months", fontSize = 12.sp, color = RonasColors.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Box {
-                    Surface(
-                        onClick = { onFilterExpandedChange(true) },
-                        color = RonasColors.SurfaceElevated,
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = "Sort categories",
-                            tint = RonasColors.TextSecondary,
-                            modifier = Modifier.padding(8.dp).size(18.dp),
-                        )
+                    Surface(onClick = { onFilterExpandedChange(true) }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                        Icon(imageVector = Icons.Default.FilterList, contentDescription = "Sort categories", tint = RonasColors.TextSecondary, modifier = Modifier.padding(8.dp).size(18.dp))
                     }
-                    DropdownMenu(
-                        expanded = filterExpanded,
-                        onDismissRequest = { onFilterExpandedChange(false) },
-                        containerColor = RonasColors.SurfaceElevated,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle),
-                    ) {
+                    DropdownMenu(expanded = filterExpanded, onDismissRequest = { onFilterExpandedChange(false) }, containerColor = RonasColors.SurfaceElevated, border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
                         CategorySort.values().forEach { mode ->
                             val selected = mode == sortMode
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = mode.label,
-                                        color = if (selected) RonasColors.GrowthGreen else RonasColors.TextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                                    )
-                                },
-                                onClick = {
-                                    onSortChange(mode)
-                                    onFilterExpandedChange(false)
-                                },
-                                trailingIcon = if (selected) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = RonasColors.GrowthGreen,
-                                            modifier = Modifier.size(16.dp),
-                                        )
-                                    }
-                                } else {
-                                    null
-                                },
-                            )
+                            DropdownMenuItem(text = { Text(text = mode.label, color = if (selected) RonasColors.GrowthGreen else RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium) }, onClick = { onSortChange(mode); onFilterExpandedChange(false) }, trailingIcon = if (selected) { { Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = RonasColors.GrowthGreen, modifier = Modifier.size(16.dp)) } } else null)
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Category",
-                    color = RonasColors.TextMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.weight(1.2f),
-                )
-                Text(
-                    text = "Spend",
-                    color = RonasColors.TextMuted,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "vs Prev Month",
-                    color = RonasColors.TextMuted,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1.4f),
-                )
+            // Two-month picker row
+            Surface(color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Month A pill
+                    Box(modifier = Modifier.weight(1f)) {
+                        Surface(onClick = { monthAMenuExpanded = true }, color = RonasColors.BgCanvas, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                                Text(text = "Month A: $monthALabel \u25BE", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.TextPrimary, maxLines = 1)
+                                Text(text = "\u20B9${"%.0f".format(java.util.Locale.US, currItems.sumOf { it.amount })}", fontSize = 11.sp, color = RonasColors.TextMuted, maxLines = 1)
+                            }
+                        }
+                        DropdownMenu(expanded = monthAMenuExpanded, onDismissRequest = { monthAMenuExpanded = false }, containerColor = RonasColors.SurfaceElevated, border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                            availableMonths.forEach { m ->
+                                val mTotal = (categoriesByMonth[m] ?: emptyList()).sumOf { it.amount }
+                                DropdownMenuItem(text = { Text(text = "${trendMonthLabel(m)} \u2014 \u20B9${"%.0f".format(java.util.Locale.US, mTotal)}", color = if (m == selectedMonth) RonasColors.GrowthGreen else RonasColors.TextPrimary, fontSize = 13.sp) }, onClick = { onSelectedMonthChange(m); monthAMenuExpanded = false })
+                            }
+                        }
+                    }
+                    // vs swap button
+                    Surface(onClick = { val tmp = selectedMonth; onSelectedMonthChange(compareMonth); onCompareMonthChange(tmp) }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                        Text(text = "vs \u21C4", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+                    }
+                    // Month B pill
+                    Box(modifier = Modifier.weight(1f)) {
+                        Surface(onClick = { monthBMenuExpanded = true }, color = RonasColors.BgCanvas, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                                Text(text = "Month B: $monthBLabel \u25BE", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.TextPrimary, maxLines = 1)
+                                Text(text = "\u20B9${"%.0f".format(java.util.Locale.US, compItems.sumOf { it.amount })}", fontSize = 11.sp, color = RonasColors.TextMuted, maxLines = 1)
+                            }
+                        }
+                        DropdownMenu(expanded = monthBMenuExpanded, onDismissRequest = { monthBMenuExpanded = false }, containerColor = RonasColors.SurfaceElevated, border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                            availableMonths.forEach { m ->
+                                val mTotal = (categoriesByMonth[m] ?: emptyList()).sumOf { it.amount }
+                                DropdownMenuItem(text = { Text(text = "${trendMonthLabel(m)} \u2014 \u20B9${"%.0f".format(java.util.Locale.US, mTotal)}", color = if (m == compareMonth) RonasColors.GrowthGreen else RonasColors.TextPrimary, fontSize = 13.sp) }, onClick = { onCompareMonthChange(m); monthBMenuExpanded = false })
+                            }
+                        }
+                    }
+                }
+            }
+            // Overall totals summary strip
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text(text = "$monthALabel Total", fontSize = 11.sp, color = RonasColors.TextMuted)
+                    Text(text = "\u20B9${formatAmount(rows.sumOf { it.curr })}", fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, fontSize = 13.sp)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$monthBLabel Total", fontSize = 11.sp, color = RonasColors.TextMuted)
+                    Text(text = "\u20B9${formatAmount(rows.sumOf { it.prev })}", fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, fontSize = 13.sp)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    val diff = rows.sumOf { it.curr } - rows.sumOf { it.prev }
+                    val pct = if (rows.sumOf { it.prev } > 0) diff / rows.sumOf { it.prev } * 100.0 else 0.0
+                    val higher = rows.sumOf { it.curr } > rows.sumOf { it.prev }
+                    Text(text = "Difference", fontSize = 11.sp, color = RonasColors.TextMuted)
+                    Text(text = if (rows.sumOf { it.prev } <= 0 && rows.sumOf { it.curr } > 0) "New" else (if (higher) "\u2191 ${"%.1f".format(java.util.Locale.US, pct)}%" else if (rows.sumOf { it.curr } < rows.sumOf { it.prev }) "\u2193 ${"%.1f".format(java.util.Locale.US, kotlin.math.abs(pct))}%" else "0.0%"), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (higher) RonasColors.DeclineRed else if (rows.sumOf { it.curr } < rows.sumOf { it.prev }) RonasColors.GrowthGreen else RonasColors.TextSecondary)
+                }
+            }
+            // Table header
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "Category", color = RonasColors.TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1.15f))
+                Text(text = "$monthALabel / $monthBLabel", color = RonasColors.TextMuted, fontSize = 12.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+                Text(text = "vs $monthBLabel", color = RonasColors.TextMuted, fontSize = 12.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1.4f))
             }
             androidx.compose.material3.HorizontalDivider(color = RonasColors.BorderSubtle, thickness = 1.dp)
             if (sorted.isEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "No category spending data",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = RonasColors.TextSecondary,
-                )
+                Text(text = "No category spending data", style = MaterialTheme.typography.bodySmall, color = RonasColors.TextSecondary)
             } else {
                 sorted.forEach { row ->
                     val share = row.curr / totalCurr * 100.0
                     val deltaPct = if (row.prev > 0) (row.curr - row.prev) / row.prev * 100.0 else 0.0
-                    val (deltaText, deltaColor) = when {
-                        row.prev <= 0.0 && row.curr > 0.0 ->
-                            "New (+₹${formatAmount(row.curr)})" to RonasColors.DeclineRed
-                        row.curr > row.prev && row.prev > 0.0 ->
-                            "↑ ${"%.1f".format(Locale.US, deltaPct)}% (+₹${formatAmount(row.curr - row.prev)})" to RonasColors.DeclineRed
-                        row.curr < row.prev ->
-                            "↓ ${"%.1f".format(Locale.US, kotlin.math.abs(deltaPct))}% (-₹${formatAmount(row.prev - row.curr)})" to RonasColors.GrowthGreen
-                        else ->
-                            "0.0% (No change)" to RonasColors.TextSecondary
+                    val (deltaTop, deltaBot, deltaColor) = when {
+                        row.prev <= 0.0 && row.curr > 0.0 -> Triple("New", "+\u20B9${formatAmount(row.curr)}", RonasColors.DeclineRed)
+                        row.curr > row.prev && row.prev > 0.0 -> Triple("\u2191 ${"%.1f".format(java.util.Locale.US, deltaPct)}%", "+\u20B9${formatAmount(row.curr - row.prev)}", RonasColors.DeclineRed)
+                        row.curr < row.prev && row.curr > 0.0 -> Triple("\u2193 ${"%.1f".format(java.util.Locale.US, kotlin.math.abs(deltaPct))}%", "-\u20B9${formatAmount(row.prev - row.curr)}", RonasColors.GrowthGreen)
+                        row.curr == 0.0 && row.prev > 0.0 -> Triple("\u2193 100.0%", "-\u20B9${formatAmount(row.prev)}", RonasColors.GrowthGreen)
+                        else -> Triple("0.0%", "No change", RonasColors.TextSecondary)
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1.2f)) {
-                            Text(
-                                text = row.name,
-                                color = RonasColors.TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "${"%.1f".format(Locale.US, share)}%",
-                                color = RonasColors.TextMuted,
-                                fontSize = 12.sp,
-                            )
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1.15f)) {
+                            Text(text = row.name, color = RonasColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(text = "$monthALabel share: ${"%.1f".format(java.util.Locale.US, share)}%", color = RonasColors.TextMuted, fontSize = 12.sp)
                         }
-                        Text(
-                            text = "₹${formatAmount(row.curr)}",
-                            color = RonasColors.TextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            text = deltaText,
-                            color = deltaColor,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.weight(1.4f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                            Text(text = "\u20B9${formatAmount(row.curr)}", color = RonasColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, maxLines = 1)
+                            Text(text = "$monthBLabel: \u20B9${formatAmount(row.prev)}", color = RonasColors.TextSecondary, fontSize = 12.sp, textAlign = TextAlign.End, maxLines = 1)
+                        }
+                        Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
+                            Text(text = deltaTop, color = deltaColor, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, maxLines = 1)
+                            Text(text = deltaBot, color = deltaColor, fontSize = 12.sp, textAlign = TextAlign.End, maxLines = 1)
+                        }
                     }
                     androidx.compose.material3.HorizontalDivider(color = RonasColors.BorderSubtle, thickness = 1.dp)
                 }
@@ -649,7 +607,6 @@ private fun CategoryMoMCard(
         }
     }
 }
-
 @Composable
 private fun StatBlock(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
