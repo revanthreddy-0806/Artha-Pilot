@@ -1,6 +1,8 @@
 package com.arthapilot.app.ui.budgets
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -252,7 +255,7 @@ private fun BudgetCard(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Tap to view breakdown & transactions →",
+                text = "Tap to view breakdown & transactions \u2192",
                 fontSize = 12.sp,
                 color = RonasColors.TextMuted,
             )
@@ -370,7 +373,7 @@ private fun BudgetDetailSheet(
     val projected = if (spent > 0) spent + (spent / 30.0) * 15 else spent
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = RonasColors.BgCanvas) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp).verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = budget.category, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -386,14 +389,14 @@ private fun BudgetDetailSheet(
             Surface(color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCell(label = "Monthly Limit", value = "?${formatAmount(limit)}", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
-                        MetricCell(label = "Actual Spent", value = "?${formatAmount(spent)}", color = if (budget.overrun) RonasColors.DeclineRed else RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                        MetricCell(label = "Monthly Limit", value = "\u20B9${formatAmount(limit)}", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                        MetricCell(label = "Actual Spent", value = "\u20B9${formatAmount(spent)}", color = if (budget.overrun) RonasColors.DeclineRed else RonasColors.TextPrimary, modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCell(label = if (remaining >= 0) "Remaining" else "Overspent", value = if (remaining >= 0) "?${formatAmount(remaining)} left" else "?${formatAmount(-remaining)} over", color = if (remaining >= 0) RonasColors.GrowthGreen else RonasColors.DeclineRed, modifier = Modifier.weight(1f))
-                        MetricCell(label = "Safe Daily", value = "?${formatAmount(safeDaily)}/day", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                        MetricCell(label = if (remaining >= 0) "Remaining" else "Overspent", value = if (remaining >= 0) "\u20B9${formatAmount(remaining)} left" else "\u20B9${formatAmount(-remaining)} over", color = if (remaining >= 0) RonasColors.GrowthGreen else RonasColors.DeclineRed, modifier = Modifier.weight(1f))
+                        MetricCell(label = "Safe Daily", value = "\u20B9${formatAmount(safeDaily)}/day", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
                     }
-                    Text(text = "Projected month-end: ?${formatAmount(projected)}", fontSize = 12.sp, color = RonasColors.TextMuted)
+                    Text(text = "Projected month-end: \u20B9${formatAmount(projected)}", fontSize = 12.sp, color = RonasColors.TextMuted)
                 }
             }
             // MoM summary strip
@@ -401,38 +404,21 @@ private fun BudgetDetailSheet(
                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(horizontalAlignment = Alignment.Start) {
                         Text(text = currLabel, fontSize = 12.sp, color = RonasColors.TextMuted)
-                        Text(text = "?${formatAmount(currTxns.sumOf { it.amount })}", fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary)
+                        Text(text = "\u20B9${formatAmount(currTxns.sumOf { it.amount })}", fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary)
                         Text(text = "${currTxns.size} txns", fontSize = 11.sp, color = RonasColors.TextMuted)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = prevLabel, fontSize = 12.sp, color = RonasColors.TextMuted)
-                        Text(text = "?${formatAmount(prevTxns.sumOf { it.amount })}", fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary)
+                        Text(text = "\u20B9${formatAmount(prevTxns.sumOf { it.amount })}", fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary)
                         Text(text = "${prevTxns.size} txns", fontSize = 11.sp, color = RonasColors.TextMuted)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         val delta = if (prevTxns.isNotEmpty()) (currTxns.sumOf { it.amount } - prevTxns.sumOf { it.amount }) / prevTxns.sumOf { it.amount } * 100.0 else 0.0
                         val higher = currTxns.sumOf { it.amount } > prevTxns.sumOf { it.amount }
                         Text(text = "vs Prev", fontSize = 12.sp, color = RonasColors.TextMuted)
-                        Text(text = if (prevTxns.isEmpty()) "New" else (if (higher) "? %.1f%%".format(java.util.Locale.US, delta) else "? %.1f%%".format(java.util.Locale.US, kotlin.math.abs(delta))), fontWeight = FontWeight.Bold, color = if (higher) RonasColors.DeclineRed else RonasColors.GrowthGreen)
+                        Text(text = if (prevTxns.isEmpty()) "New" else (if (higher) "\u2191 %.1f%%".format(java.util.Locale.US, delta) else "\u2193 %.1f%%".format(java.util.Locale.US, kotlin.math.abs(delta))), fontWeight = FontWeight.Bold, color = if (higher) RonasColors.DeclineRed else RonasColors.GrowthGreen)
                     }
                 }
-            }
-            // Filter pills
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Current Month (${currTxns.size})", "Previous Month (${prevTxns.size})", "Both Months").forEachIndexed { idx, label ->
-                    Surface(onClick = { filterTab = idx }, color = if (filterTab == idx) RonasColors.SurfaceElevated else RonasColors.BgCanvas, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (filterTab == idx) RonasColors.GrowthGreen else RonasColors.BorderSubtle)) {
-                        Text(text = label, color = if (filterTab == idx) RonasColors.GrowthGreen else RonasColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
-                    }
-                }
-            }
-            // Transaction lists
-            if (filterTab == 0 || filterTab == 2) {
-                Text(text = "Current Month ($currLabel) � Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
-                TxnList(txns = currTxns, emptyMsg = "No spent transactions in $currLabel for ${budget.category}.")
-            }
-            if (filterTab == 1 || filterTab == 2) {
-                Text(text = "Previous Month ($prevLabel) � Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
-                TxnList(txns = prevTxns, emptyMsg = "No spent transactions in $prevLabel for ${budget.category}.")
             }
             // Quick actions
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -442,6 +428,35 @@ private fun BudgetDetailSheet(
             if (showEdit) {
                 OutlinedTextField(value = editLimitText, onValueChange = { editLimitText = it }, label = { Text("New limit") }, modifier = Modifier.fillMaxWidth())
                 Button(onClick = { editLimitText.toDoubleOrNull()?.let { onEdit(it) } }, modifier = Modifier.fillMaxWidth()) { Text("Save") }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // Filter pills
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Current Month (${currTxns.size})", "Previous Month (${prevTxns.size})", "Both Months").forEachIndexed { idx, label ->
+                    Surface(onClick = { filterTab = idx }, color = if (filterTab == idx) RonasColors.SurfaceElevated else RonasColors.BgCanvas, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (filterTab == idx) RonasColors.GrowthGreen else RonasColors.BorderSubtle)) {
+                        Text(text = label, color = if (filterTab == idx) RonasColors.GrowthGreen else RonasColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+                    }
+                }
+            }
+            // Transaction lists
+            if (filterTab == 0) {
+                Text(text = "Current Month ($currLabel) \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                TxnList(txns = currTxns, emptyMsg = "No spent transactions in $currLabel for ${budget.category}.")
+            } else if (filterTab == 1) {
+                Text(text = "Previous Month ($prevLabel) \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                TxnList(txns = prevTxns, emptyMsg = "No spent transactions in $prevLabel for ${budget.category}.")
+            } else {
+                val allCatTxns = transactions.filter { t -> t.transactionType == "debit" && t.category.equals(budget.category, ignoreCase = true) }
+                val allMonths = allCatTxns.map { it.date.take(7) }.distinct().sortedDescending()
+                if (allMonths.isEmpty()) {
+                    Text(text = "No spent transactions for ${budget.category}.", fontSize = 12.sp, color = RonasColors.TextMuted)
+                } else {
+                    allMonths.forEach { m ->
+                        val mTxns = allCatTxns.filter { it.date.startsWith(m) }
+                        Text(text = "${trendMonthLabel(m)} \u2014 Spent Transactions", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                        TxnList(txns = mTxns, emptyMsg = "No spent transactions in ${trendMonthLabel(m)} for ${budget.category}.")
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -462,7 +477,7 @@ private fun TxnList(txns: List<Transaction>, emptyMsg: String) {
         Text(text = emptyMsg, fontSize = 12.sp, color = RonasColors.TextMuted)
     } else {
         val highest = txns.maxByOrNull { it.amount }
-        Text(text = "${txns.size} transactions � Highest: -?${formatAmount(highest?.amount ?: 0.0)}", fontSize = 12.sp, color = RonasColors.TextMuted)
+        Text(text = "${txns.size} transactions \u2022 Highest: -\u20B9${formatAmount(highest?.amount ?: 0.0)}", fontSize = 12.sp, color = RonasColors.TextMuted)
         txns.forEach { t ->
             Surface(color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                 Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -470,7 +485,7 @@ private fun TxnList(txns: List<Transaction>, emptyMsg: String) {
                         Text(text = t.description, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(text = t.date, fontSize = 12.sp, color = RonasColors.TextMuted)
                     }
-                    Text(text = "-?${formatAmount(t.amount)}", fontWeight = FontWeight.Bold, color = RonasColors.DeclineRed)
+                    Text(text = "-\u20B9${formatAmount(t.amount)}", fontWeight = FontWeight.Bold, color = RonasColors.DeclineRed)
                 }
             }
         }
