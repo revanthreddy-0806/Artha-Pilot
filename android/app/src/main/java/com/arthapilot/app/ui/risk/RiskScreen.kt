@@ -42,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -75,7 +77,7 @@ fun RiskScreen(
         containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text(if (showingQuestionnaire) "Risk Appetite" else "Credit Health", color = RonasColors.TextPrimary) },
+                title = { Text(if (showingQuestionnaire) "Risk Appetite" else "Credit Health", color = RonasColors.TextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, letterSpacing = (-0.3).sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },

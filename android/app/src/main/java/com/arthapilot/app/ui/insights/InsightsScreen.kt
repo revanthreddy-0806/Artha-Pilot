@@ -110,7 +110,7 @@ fun InsightsScreen(
         containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("Insights", color = RonasColors.TextPrimary) },
+                title = { Text("Insights", color = RonasColors.TextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, letterSpacing = (-0.3).sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Text("‹") }
                 },
@@ -174,7 +174,11 @@ fun InsightsScreen(
                                     Text(
                                         "Monthly trends",
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = RonasColors.TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                     Spacer(modifier = Modifier.height(16.dp))
                                     RonasDualBarChart(
@@ -238,7 +242,11 @@ fun InsightsScreen(
                                     Text(
                                         "Spending by category",
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = RonasColors.TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     uiState.breakdown.take(6).forEach { item ->
@@ -282,7 +290,11 @@ private fun SummaryCard(
             Text(
                 text = "Monthly summary",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = RonasColors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             selectedMonth?.let {
                 Spacer(modifier = Modifier.height(4.dp))
@@ -340,7 +352,11 @@ private fun MonthlyPerformanceCard(
             Text(
                 text = "$monthLabel Performance • vs $prevLabel",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = RonasColors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(modifier = Modifier.height(12.dp))
             val trend = selectedTrend
@@ -476,7 +492,11 @@ private fun CategoryMoMCard(
                     Text(
                         text = "$monthLabel Category Spending",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = RonasColors.TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = "vs $prevLabel",

@@ -433,8 +433,8 @@ fun RonasCategoryTable(
             Text(
                 text = "Category breakdown",
                 color = RonasColors.TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),

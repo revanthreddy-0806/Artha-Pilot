@@ -53,6 +53,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -101,7 +103,7 @@ fun HomeScreen(
         containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
-                title = { Text("ArthaPilot", color = RonasColors.TextPrimary) },
+                title = { Text("ArthaPilot", color = RonasColors.TextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, letterSpacing = (-0.3).sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
                     RonasPillButton(text = "+ Add txn", onClick = { showCreateDialog = true })
                     Spacer(modifier = Modifier.width(8.dp))
@@ -155,9 +157,11 @@ fun HomeScreen(
                         Text(
                             text = "Cashflow summary",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
                             color = RonasColors.TextPrimary,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             RonasMetricItem(
