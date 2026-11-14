@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.arthapilot.app.data.refresh.DataInvalidationBus
 import com.arthapilot.app.data.refresh.NoOpDataInvalidationBus
 import com.arthapilot.app.data.repository.InsightsRepository
+import com.arthapilot.app.data.repository.TransactionRepository
 import com.arthapilot.app.domain.model.ApiException
 import com.arthapilot.app.domain.model.RecurringItem
+import com.arthapilot.app.domain.model.Transaction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -19,6 +21,7 @@ import javax.inject.Inject
 
 data class RecurringUiState(
     val items: List<RecurringItem> = emptyList(),
+    val transactions: List<Transaction> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val offline: Boolean = false,
@@ -28,10 +31,14 @@ data class RecurringUiState(
 class RecurringViewModel @Inject constructor(
     private val insightsRepository: InsightsRepository,
     private val invalidationBus: DataInvalidationBus,
+    private val transactionRepository: TransactionRepository? = null,
 ) : ViewModel() {
 
     constructor(insightsRepository: InsightsRepository) :
-        this(insightsRepository, NoOpDataInvalidationBus)
+        this(insightsRepository, NoOpDataInvalidationBus, null)
+
+    constructor(insightsRepository: InsightsRepository, invalidationBus: DataInvalidationBus) :
+        this(insightsRepository, invalidationBus, null)
 
     private val _uiState = MutableStateFlow(RecurringUiState())
     val uiState: StateFlow<RecurringUiState> = _uiState.asStateFlow()
@@ -60,8 +67,11 @@ class RecurringViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 val items = insightsRepository.fetchRecurring()
+                val transactions = transactionRepository?.let {
+                    try { it.fetchTransactions(1, 200, null, null, null, null).items } catch (e: Exception) { emptyList() }
+                } ?: emptyList()
                 if (currentRequestId != requestId) return@launch
-                _uiState.update { it.copy(items = items, isLoading = false, offline = false) }
+                _uiState.update { it.copy(items = items, transactions = transactions, isLoading = false, offline = false) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {

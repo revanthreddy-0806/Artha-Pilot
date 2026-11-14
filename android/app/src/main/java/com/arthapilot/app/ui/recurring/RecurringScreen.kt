@@ -1,5 +1,6 @@
 package com.arthapilot.app.ui.recurring
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,30 +10,44 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.arthapilot.app.ui.theme.RonasColors
 import com.arthapilot.app.ui.theme.RonasCard
+import com.arthapilot.app.ui.theme.RonasTickStripBar
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
@@ -40,7 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arthapilot.app.domain.model.RecurringItem
+import com.arthapilot.app.domain.model.Transaction
 import com.arthapilot.app.ui.home.formatAmount
+import com.arthapilot.app.ui.insights.trendMonthLabel
+import java.time.LocalDate
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,6 +69,10 @@ fun RecurringScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var selectedRecurring by remember { mutableStateOf<RecurringItem?>(null) }
+    var filterMode by remember { mutableStateOf("all") } // all, essential, subs
+    var sortMode by remember { mutableStateOf("amount_desc") } // amount_desc, amount_asc, freq, az
+    var filterExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -59,13 +81,31 @@ fun RecurringScreen(
         }
     }
 
+    val items = uiState.items
+    val totalMonthly = items.sumOf { it.amount }
+    val essentialCategories = setOf("Rent", "Utilities", "Bills & Recurring", "Investments", "Transfers")
+    val essentialTotal = items.filter { it.category in essentialCategories || it.kind == "emi" }.sumOf { it.amount }
+    val subsTotal = (totalMonthly - essentialTotal).coerceAtLeast(0.0)
+
+    val filtered = when (filterMode) {
+        "essential" -> items.filter { it.category in essentialCategories || it.kind == "emi" }
+        "subs" -> items.filter { !(it.category in essentialCategories || it.kind == "emi") }
+        else -> items
+    }
+    val sorted = when (sortMode) {
+        "amount_asc" -> filtered.sortedBy { it.amount }
+        "freq" -> filtered.sortedByDescending { it.occurrences }
+        "az" -> filtered.sortedBy { it.description.lowercase() }
+        else -> filtered.sortedByDescending { it.amount }
+    }
+
     Scaffold(
         containerColor = RonasColors.BgCanvas,
         topBar = {
             TopAppBar(
                 title = { Text("Recurring & EMIs", color = RonasColors.TextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, letterSpacing = (-0.3).sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Text("‹") }
+                    IconButton(onClick = onBack) { Text("\u2039") }
                 },
                 actions = {
                     IconButton(onClick = viewModel::refresh) {
@@ -91,7 +131,7 @@ fun RecurringScreen(
                         Text(
                             "Charges that repeat monthly are listed here",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = RonasColors.TextSecondary,
                         )
                     }
                 }
@@ -106,72 +146,203 @@ fun RecurringScreen(
                     if (uiState.offline) {
                         item {
                             Text(
-                                text = "Offline · showing last fetched detections",
+                                text = "Offline \u00B7 showing last fetched detections",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = RonasColors.TextSecondary,
                             )
                         }
                     }
-                    items(uiState.items, key = { it.transactionId }) { item ->
-                        RecurringCard(item = item)
+                    // Hero card
+                    item {
+                        RonasCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = "Monthly Committed", fontSize = 12.sp, color = RonasColors.TextMuted)
+                                        Text(text = "\u20B9${formatAmount(totalMonthly)}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = RonasColors.DeclineRed, maxLines = 1)
+                                    }
+                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(text = "Annualized (12m)", fontSize = 12.sp, color = RonasColors.TextMuted)
+                                        Text(text = "\u20B9${formatAmount(totalMonthly * 12)}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, maxLines = 1)
+                                    }
+                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                        Text(text = "Recurring Series", fontSize = 12.sp, color = RonasColors.TextMuted)
+                                        Text(text = "${items.size} active", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = RonasColors.GrowthGreen, maxLines = 1)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                RonasTickStripBar(
+                                    primaryFraction = (essentialTotal / totalMonthly.coerceAtLeast(0.001)).toFloat().coerceIn(0f, 1f),
+                                    secondaryFraction = (subsTotal / totalMonthly.coerceAtLeast(0.001)).toFloat().coerceIn(0f, 1f),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Essential: \u20B9${formatAmount(essentialTotal)} \u2022 Subscriptions/Other: \u20B9${formatAmount(subsTotal)}",
+                                    fontSize = 11.sp,
+                                    color = RonasColors.TextMuted,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                    // Section header + filter
+                    item {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = "Detected Recurring Payments", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val filterLabel = when (filterMode) {
+                                    "essential" -> "Essential Bills Only"
+                                    "subs" -> "Subscriptions & Discretionary Only"
+                                    else -> "All Commitments"
+                                }
+                                val sortLabel = when (sortMode) {
+                                    "amount_asc" -> "Lowest Amount \u2191"
+                                    "freq" -> "Most Frequent"
+                                    "az" -> "A\u2013Z"
+                                    else -> "Highest Amount \u2193"
+                                }
+                                Text(text = "$filterLabel \u2022 $sortLabel", fontSize = 12.sp, color = RonasColors.TextMuted, maxLines = 1)
+                            }
+                            Box {
+                                Surface(onClick = { filterExpanded = true }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                                    Icon(imageVector = Icons.Default.FilterList, contentDescription = "Filter recurring", tint = RonasColors.TextSecondary, modifier = Modifier.padding(8.dp).size(18.dp))
+                                }
+                                DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }, containerColor = RonasColors.SurfaceElevated, border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                                    Text(text = "Filter", fontSize = 11.sp, color = RonasColors.TextMuted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                                    DropdownMenuItem(text = { Text("All Commitments", color = if (filterMode == "all") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { filterMode = "all"; filterExpanded = false })
+                                    DropdownMenuItem(text = { Text("Essential Bills Only", color = if (filterMode == "essential") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { filterMode = "essential"; filterExpanded = false })
+                                    DropdownMenuItem(text = { Text("Subscriptions & Discretionary Only", color = if (filterMode == "subs") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { filterMode = "subs"; filterExpanded = false })
+                                    HorizontalDivider(color = RonasColors.BorderSubtle, thickness = 1.dp)
+                                    Text(text = "Sort", fontSize = 11.sp, color = RonasColors.TextMuted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                                    DropdownMenuItem(text = { Text("Highest Amount \u2193", color = if (sortMode == "amount_desc") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { sortMode = "amount_desc"; filterExpanded = false })
+                                    DropdownMenuItem(text = { Text("Lowest Amount \u2191", color = if (sortMode == "amount_asc") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { sortMode = "amount_asc"; filterExpanded = false })
+                                    DropdownMenuItem(text = { Text("Most Frequent", color = if (sortMode == "freq") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { sortMode = "freq"; filterExpanded = false })
+                                    DropdownMenuItem(text = { Text("A\u2013Z", color = if (sortMode == "az") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { sortMode = "az"; filterExpanded = false })
+                                }
+                            }
+                        }
+                    }
+                    items(sorted, key = { it.transactionId }) { item ->
+                        RecurringCard(item = item, totalMonthly = totalMonthly, onClick = { selectedRecurring = item })
                     }
                 }
+            }
+        }
+    }
+
+    if (selectedRecurring != null) {
+        val item = selectedRecurring!!
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(onDismissRequest = { selectedRecurring = null }, sheetState = sheetState, containerColor = Color(0xFF111314)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = item.description, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(text = "${item.category} \u2022 every ${item.intervalDays} days", fontSize = 13.sp, color = RonasColors.TextSecondary)
+                    }
+                    Surface(color = RonasColors.GrowthGreen.copy(alpha = 0.15f), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen)) {
+                        Text(text = "Active Recurring", color = RonasColors.GrowthGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                    }
+                }
+                // 4-metric grid
+                Surface(color = Color(0xFF16191A), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            MetricCell(label = "Average Amount", value = "\u20B9${formatAmount(item.amount)}", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                            MetricCell(label = "Annualized Cost", value = "\u20B9${formatAmount(item.amount * 12)}/yr", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val matching = uiState.transactions.filter { t -> t.transactionType == "debit" && t.description.contains(item.description.take(8), ignoreCase = true) }
+                            MetricCell(label = "Total Paid (Recorded)", value = "\u20B9${formatAmount(matching.sumOf { it.amount })} (${matching.size} charges)", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                            MetricCell(label = "Last / Next Expected", value = "${item.lastDate} / ${item.nextExpectedDate}", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+                Text(text = "Payment History", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary)
+                val matching = uiState.transactions.filter { t -> t.transactionType == "debit" && t.description.contains(item.description.take(8), ignoreCase = true) }.sortedByDescending { it.date }
+                if (matching.isEmpty()) {
+                    Text(text = "No recorded payments", fontSize = 12.sp, color = RonasColors.TextMuted)
+                } else {
+                    matching.forEach { t ->
+                        Surface(color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = t.date, fontSize = 12.sp, color = RonasColors.TextMuted)
+                                    Text(text = t.description, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Text(text = "-\u20B9${formatAmount(t.amount)}", fontWeight = FontWeight.Bold, color = RonasColors.DeclineRed)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
 }
 
 @Composable
-private fun RecurringCard(item: RecurringItem) {
+private fun MetricCell(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(text = label, fontSize = 11.sp, color = RonasColors.TextMuted)
+        Text(text = value, fontWeight = FontWeight.Bold, color = color, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun RecurringCard(item: RecurringItem, totalMonthly: Double, onClick: () -> Unit) {
     val isEmi = item.kind == "emi"
-    val accent = if (isEmi) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    RonasCard(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = item.description,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = RonasColors.TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Spacer(modifier = Modifier.padding(start = 8.dp))
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = accent.copy(alpha = 0.15f),
-                    ) {
-                        Text(
-                            text = if (isEmi) "EMI" else "RECURRING",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = accent,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
+    val accent = if (isEmi) RonasColors.DeclineRed else RonasColors.GrowthGreen
+    val essentialCategories = setOf("Rent", "Utilities", "Bills & Recurring", "Investments", "Transfers")
+    val isEssential = isEmi || item.category in essentialCategories
+    val share = item.amount / totalMonthly.coerceAtLeast(0.001) * 100.0
+    val nextDue = item.nextExpectedDate
+    RonasCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "${item.category} · every ${item.intervalDays} days · ${item.occurrences}x · " +
-                        "confidence ${"%.0f".format(Locale.US, item.confidence * 100)}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = item.description,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RonasColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Next expected: ${item.nextExpectedDate}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+                    text = "-\u20B9${formatAmount(item.amount)}",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RonasColors.DeclineRed,
+                    maxLines = 1,
                 )
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = accent.copy(alpha = 0.15f), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, accent)) {
+                    Text(text = if (isEmi) "EMI" else "RECURRING", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                }
+                Surface(color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                    Text(text = "Monthly", fontSize = 11.sp, color = RonasColors.TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                }
+                Surface(color = RonasColors.GrowthGreen.copy(alpha = 0.15f), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen)) {
+                    Text(text = "Next est: ${nextDue}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.GrowthGreen, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), maxLines = 1)
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "−₹${formatAmount(item.amount)}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.error,
+                text = "${String.format(Locale.US, "%.1f", share)}% of fixed spend \u2022 \u20B9${formatAmount(item.amount * 12)}/yr",
+                fontSize = 12.sp,
+                color = RonasColors.TextMuted,
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Tap for payment history \u2192",
+                fontSize = 11.sp,
+                color = RonasColors.TextMuted,
             )
         }
     }
