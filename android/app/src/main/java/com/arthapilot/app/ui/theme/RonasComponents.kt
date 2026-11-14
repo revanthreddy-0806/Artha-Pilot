@@ -312,10 +312,16 @@ fun RonasDualBarChart(
                 Column(
                     modifier = Modifier
                         .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable(enabled = onBarSelected != null) { onBarSelected?.invoke(index) }
                         .background(
                             if (selected) RonasColors.SurfaceElevated else androidx.compose.ui.graphics.Color.Transparent,
-                            RoundedCornerShape(8.dp),
+                            RoundedCornerShape(10.dp),
+                        )
+                        .border(
+                            1.dp,
+                            if (selected) RonasColors.GrowthGreen.copy(alpha = 0.45f) else androidx.compose.ui.graphics.Color.Transparent,
+                            RoundedCornerShape(10.dp),
                         )
                         .padding(horizontal = 2.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -346,31 +352,23 @@ fun RonasDualBarChart(
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = month,
+                        color = if (selected) RonasColors.GrowthGreen else RonasColors.TextMuted,
+                        fontSize = 10.sp,
+                        fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
                 }
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            months.forEachIndexed { index, month ->
-                val selected = index == selectedIndex
-                Text(
-                    text = month,
-                    color = if (selected) RonasColors.TextPrimary else RonasColors.TextMuted,
-                    fontSize = 10.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
             }
         }
     }
 }
+
 data class RonasCategoryRow(
     val label: String,
     val transactionType: String,
