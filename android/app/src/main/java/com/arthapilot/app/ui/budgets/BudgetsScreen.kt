@@ -70,11 +70,16 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arthapilot.app.domain.model.Budget
 import com.arthapilot.app.domain.model.Transaction
+import com.arthapilot.app.domain.model.WhatIfResult
+import com.arthapilot.app.ui.recommendations.RecommendationUiState
+import com.arthapilot.app.ui.recommendations.RecommendationViewModel
 import androidx.compose.ui.graphics.Color
 import com.arthapilot.app.ui.insights.previousMonth
 import com.arthapilot.app.ui.insights.trendMonthLabel
 import com.arthapilot.app.ui.home.FALLBACK_CATEGORIES
 import com.arthapilot.app.ui.home.formatAmount
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,8 +87,10 @@ import java.util.Locale
 fun BudgetsScreen(
     onBack: () -> Unit,
     viewModel: BudgetsViewModel = hiltViewModel(),
+    recommendationViewModel: RecommendationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val recUiState by recommendationViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedBudget by remember { mutableStateOf<Budget?>(null) }
@@ -92,6 +99,12 @@ fun BudgetsScreen(
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.onErrorDismissed()
+        }
+    }
+    LaunchedEffect(recUiState.whatIfError) {
+        recUiState.whatIfError?.let {
+            snackbarHostState.showSnackbar(it)
+            recommendationViewModel.onWhatIfErrorDismissed()
         }
     }
 
@@ -125,16 +138,24 @@ fun BudgetsScreen(
             }
 
             uiState.budgets.isEmpty() -> {
-                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No budgets yet", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Set a monthly limit per category to track overruns",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = RonasColors.TextSecondary,
-                        )
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                ) {
+                    item {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                            Text("No budgets yet", style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Set a monthly limit per category to track overruns",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = RonasColors.TextSecondary,
+                            )
+                        }
                     }
+                    item { BudgetsWhatIfSection(recUiState = recUiState, viewModel = recommendationViewModel) }
+                    item { Spacer(modifier = Modifier.height(32.dp)) }
                 }
             }
 
@@ -160,6 +181,9 @@ fun BudgetsScreen(
                             onDelete = { viewModel.deleteBudget(budget.category) },
                         )
                     }
+                    item { Spacer(modifier = Modifier.height(28.dp)) }
+                    item { BudgetsWhatIfSection(recUiState = recUiState, viewModel = recommendationViewModel) }
+                    item { Spacer(modifier = Modifier.height(32.dp)) }
                 }
             }
         }
@@ -537,5 +561,161 @@ private fun TxnList(txns: List<Transaction>, emptyMsg: String) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BudgetsWhatIfSection(
+    recUiState: RecommendationUiState,
+    viewModel: RecommendationViewModel,
+) {
+    Spacer(modifier = Modifier.height(0.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(modifier = Modifier.weight(1f), thickness = 1.dp, color = Color(0xFF222627))
+        Surface(color = Color(0xFF16191A), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen.copy(alpha = 0.35f)), modifier = Modifier.padding(horizontal = 4.dp)) {
+            Text(text = "SCENARIO PLANNING", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp, color = RonasColors.GrowthGreen, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+        }
+        HorizontalDivider(modifier = Modifier.weight(1f), thickness = 1.dp, color = Color(0xFF222627))
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+    Text(text = "What-If Financial Simulator", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = RonasColors.TextPrimary)
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(text = "Test how cutting or adjusting monthly spending impacts your cashflow and risk score", fontSize = 13.sp, color = RonasColors.TextSecondary)
+    Spacer(modifier = Modifier.height(12.dp))
+    Surface(color = Color(0xFF16191A), shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen.copy(alpha = 0.30f)), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            WhatIfControls(uiState = recUiState, viewModel = viewModel)
+            recUiState.whatIfResult?.let { result ->
+                Spacer(modifier = Modifier.height(12.dp))
+                WhatIfResultCard(result = result)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WhatIfControls(uiState: RecommendationUiState, viewModel: RecommendationViewModel) {
+    var selectedCategory by remember(uiState.categories) { mutableStateOf(uiState.categories.firstOrNull() ?: "") }
+    var reduction by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Box {
+                OutlinedTextField(
+                    value = selectedCategory,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Category") },
+                    trailingIcon = { Text("\u25BE") },
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = uiState.categories.isNotEmpty()) { expanded = true },
+                    enabled = uiState.categories.isNotEmpty(),
+                )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    uiState.categories.forEach { candidate ->
+                        DropdownMenuItem(
+                            text = { Text(candidate) },
+                            onClick = {
+                                selectedCategory = candidate
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = reduction,
+                onValueChange = { reduction = it },
+                label = { Text("Monthly reduction (\u20B9)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    val amount = reduction.toDoubleOrNull() ?: 0.0
+                    if (selectedCategory.isNotBlank() && amount > 0) {
+                        viewModel.simulate(selectedCategory, amount)
+                    }
+                },
+                enabled = !uiState.whatIfLoading && selectedCategory.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (uiState.whatIfLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Simulating\u2026")
+                } else {
+                    Text("Run Simulation")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WhatIfResultCard(result: WhatIfResult) {
+    val currentRate = result.original.savingsRate ?: 0.0
+    val newRate = result.simulated.savingsRate ?: 0.0
+    RonasCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = "Result \u2022 ${result.category}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { newRate.toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Savings rate ${String.format(Locale.US, "%.1f%%", currentRate * 100)} \u2192 ${String.format(Locale.US, "%.1f%%", newRate * 100)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SummaryRow(
+                "Monthly expenses",
+                "${formatAmount(result.original.monthlyExpenses)} \u2192 ${formatAmount(result.simulated.monthlyExpenses)}",
+            )
+            SummaryRow(
+                "Monthly savings",
+                "${formatAmount(result.original.monthlySavings)} \u2192 ${formatAmount(result.simulated.monthlySavings)}",
+            )
+            SummaryRow("Extra investable / year", formatAmount(result.impact.annualisedExtraInvestable))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = result.narrative,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = result.educationalDisclaimer,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
