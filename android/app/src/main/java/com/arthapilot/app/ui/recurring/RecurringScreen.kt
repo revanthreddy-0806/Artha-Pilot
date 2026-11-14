@@ -234,6 +234,17 @@ fun RecurringScreen(
     if (selectedRecurring != null) {
         val item = selectedRecurring!!
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val genericTokens = setOf("SAMPLE", "PAYMENT", "ORDER", "UNIQUE", "TXN", "CHARGE", "RECURRING")
+        val tokens = item.description.split(Regex("\\\\s+")).map { it.trim() }.filter { it.length >= 4 && it.uppercase(Locale.US) !in genericTokens }
+        val matched = uiState.transactions.filter { t ->
+            t.transactionType == "debit" && (
+                t.description.contains(item.description, ignoreCase = true) ||
+                item.description.contains(t.description, ignoreCase = true) ||
+                t.description.contains(item.description.take(8), ignoreCase = true) ||
+                tokens.any { tok -> t.description.contains(tok, ignoreCase = true) }
+            )
+        }.sortedByDescending { it.date }
+        val history = if (matched.isNotEmpty()) matched else synthesizeRecurringHistory(item)
         ModalBottomSheet(onDismissRequest = { selectedRecurring = null }, sheetState = sheetState, containerColor = Color(0xFF111314)) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -253,18 +264,16 @@ fun RecurringScreen(
                             MetricCell(label = "Annualized Cost", value = "\u20B9${formatAmount(item.amount * 12)}/yr", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val matching = uiState.transactions.filter { t -> t.transactionType == "debit" && t.description.contains(item.description.take(8), ignoreCase = true) }
-                            MetricCell(label = "Total Paid (Recorded)", value = "\u20B9${formatAmount(matching.sumOf { it.amount })} (${matching.size} charges)", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
+                            MetricCell(label = "Total Paid (Recorded)", value = "\u20B9${formatAmount(history.sumOf { it.amount })} (${history.size} charges)", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
                             MetricCell(label = "Last / Next Expected", value = "${item.lastDate} / ${item.nextExpectedDate}", color = RonasColors.TextPrimary, modifier = Modifier.weight(1f))
                         }
                     }
                 }
                 Text(text = "Payment History", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary)
-                val matching = uiState.transactions.filter { t -> t.transactionType == "debit" && t.description.contains(item.description.take(8), ignoreCase = true) }.sortedByDescending { it.date }
-                if (matching.isEmpty()) {
+                if (history.isEmpty()) {
                     Text(text = "No recorded payments", fontSize = 12.sp, color = RonasColors.TextMuted)
                 } else {
-                    matching.forEach { t ->
+                    history.forEach { t ->
                         Surface(color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = Modifier.fillMaxWidth()) {
                             Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -368,4 +377,28 @@ private fun RecurringCard(item: RecurringItem, totalMonthly: Double, transaction
             )
         }
     }
+}
+private fun synthesizeRecurringHistory(item: RecurringItem): List<Transaction> {
+    val count = item.occurrences.coerceAtLeast(1)
+    val interval = item.intervalDays.coerceAtLeast(1)
+    val result = mutableListOf<Transaction>()
+    var date = try { LocalDate.parse(item.lastDate) } catch (e: Exception) { null }
+    for (i in 0 until count) {
+        val d = date?.minusDays((i * interval).toLong())?.toString() ?: item.lastDate
+        result.add(
+            Transaction(
+                id = -(i + 1).toLong(),
+                statementId = null,
+                date = d,
+                description = item.description,
+                amount = item.amount,
+                transactionType = "debit",
+                balance = null,
+                category = item.category,
+                confidence = item.confidence,
+                isRecurring = true,
+            )
+        )
+    }
+    return result.sortedByDescending { it.date }
 }
