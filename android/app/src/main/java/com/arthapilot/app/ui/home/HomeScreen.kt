@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -25,6 +26,9 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -127,11 +131,6 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("ArthaPilot", color = RonasColors.TextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, letterSpacing = (-0.3).sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
-                    RonasPillButton(text = "+ Add txn", onClick = { showCreateDialog = true })
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = onStatementsClick) {
-                        Icon(Icons.Default.History, contentDescription = "Statement history", tint = RonasColors.TextPrimary)
-                    }
                     IconButton(onClick = viewModel::refresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
@@ -142,11 +141,6 @@ fun HomeScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onUploadClick) {
-                Icon(Icons.Default.Add, contentDescription = "Upload statement")
-            }
-        },
     ) { padding ->
         val totalIncome = periodTransactions.filter { it.transactionType == "credit" }.sumOf { it.amount }
         val totalExpenses = periodTransactions.filter { it.transactionType == "debit" }.sumOf { it.amount }
@@ -222,16 +216,16 @@ fun HomeScreen(
                             Text(text = "Savings Rate: ${"%.1f".format(Locale.US, savingsRate)}%", fontSize = 12.sp, color = RonasColors.TextMuted)
                             Text(text = "${periodTransactions.size} txns in period", fontSize = 12.sp, color = RonasColors.TextMuted)
                         }
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 1.dp, color = Color(0xFF222627))
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                            IconDockItem(icon = Icons.Default.Add, label = "Add Txn", tint = RonasColors.GrowthGreen, borderColor = RonasColors.GrowthGreen.copy(alpha = 0.45f), onClick = { showCreateDialog = true })
+                            IconDockItem(icon = Icons.Default.FileUpload, label = "Upload", tint = RonasColors.TextPrimary, borderColor = RonasColors.BorderSubtle, onClick = onUploadClick)
+                            IconDockItem(icon = Icons.Default.Description, label = "Statements", tint = RonasColors.TextPrimary, borderColor = RonasColors.BorderSubtle, onClick = onStatementsClick)
+                            IconDockItem(icon = Icons.Default.AutoAwesome, label = "Ask AI", tint = RonasColors.GrowthGreen, borderColor = RonasColors.BorderSubtle, onClick = onNavigateToAssistant)
+                        }
                     }
-                }
-            }
-
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuickActionPill(text = "+ Add Txn", onClick = { /* existing add handled via top bar */ }, modifier = Modifier.weight(1f))
-                    QuickActionPill(text = "Upload", onClick = onUploadClick, modifier = Modifier.weight(1f))
-                    QuickActionPill(text = "Statements", onClick = onStatementsClick, modifier = Modifier.weight(1f))
-                    QuickActionPill(text = "Ask AI", onClick = onNavigateToAssistant, modifier = Modifier.weight(1f))
                 }
             }
 
@@ -594,6 +588,19 @@ private fun TransactionCard(
 private fun QuickActionPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(onClick = onClick, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = modifier) {
         Text(text = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.TextPrimary, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+@Composable
+private fun IconDockItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, borderColor: Color, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(onClick = onClick, color = RonasColors.SurfaceElevated, shape = CircleShape, border = androidx.compose.foundation.BorderStroke(1.dp, borderColor), modifier = Modifier.size(44.dp)) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(imageVector = icon, contentDescription = label, tint = tint)
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.TextSecondary, maxLines = 1)
     }
 }
 

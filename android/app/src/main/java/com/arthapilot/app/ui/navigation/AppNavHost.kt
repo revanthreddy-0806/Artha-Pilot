@@ -181,6 +181,7 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
                     onLogout = { authViewModel.logout() },
                     refreshSignal = uploadCompleted,
                     onRefreshHandled = { homeEntry.savedStateHandle["upload_completed"] = false },
+                    onNavigateToAssistant = { navController.navigate(Routes.ASSISTANT) { launchSingleTop = true } },
                 )
             }
 

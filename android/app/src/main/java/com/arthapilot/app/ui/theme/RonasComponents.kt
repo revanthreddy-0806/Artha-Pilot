@@ -388,6 +388,8 @@ enum class RonasCategorySort(val label: String) {
 fun RonasCategoryTable(
     rows: List<RonasCategoryRow>,
     modifier: Modifier = Modifier,
+    selectedCategory: String? = null,
+    onCategoryClick: (String) -> Unit = {},
 ) {
     var sortMode by rememberSaveable { mutableStateOf(RonasCategorySort.HighestExpense) }
 
@@ -527,9 +529,14 @@ fun RonasCategoryTable(
             } else {
                 row.amount / expenseTotal * 100.0
             }
+            val rowSelected = selectedCategory == row.label
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { onCategoryClick(row.label) }
+                    .background(if (rowSelected) RonasColors.SurfaceElevated else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(10.dp))
+                    .then(if (rowSelected) Modifier.border(1.dp, RonasColors.GrowthGreen, RoundedCornerShape(10.dp)) else Modifier)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
