@@ -506,9 +506,7 @@ private fun CategoryMoMCard(
                         }
                     }
                 }
-                Surface(onClick = { val tmp = catMonth1; onCatMonth1Change(catMonth2); onCatMonth2Change(tmp) }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
-                    Text(text = "vs \u21C4", fontSize = 12.sp, color = RonasColors.TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
-                }
+                Text(text = "vs", fontSize = 13.sp, color = RonasColors.TextMuted, maxLines = 1)
                 Box {
                     Surface(onClick = { menu2Expanded = true }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
                         Text(text = "$month2Label \u25BE", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
@@ -532,8 +530,8 @@ private fun CategoryMoMCard(
             // Total row
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "Total", color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.25f))
-                Text(text = "\u20B9${formatCompactAmount(total1)}", color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1)
-                Text(text = "\u20B9${formatCompactAmount(total2)}", color = RonasColors.TextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1)
+                Text(text = "\u20B9${formatCompactAmount(total1)}", color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1, softWrap = false)
+                Text(text = "\u20B9${formatCompactAmount(total2)}", color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1, softWrap = false)
                 val diff = total1 - total2
                 val pct = if (total2 > 0) diff / total2 * 100.0 else 0.0
                 val higher = total1 > total2
@@ -559,8 +557,8 @@ private fun CategoryMoMCard(
                             Text(text = row.name, color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(text = "${"%.1f".format(java.util.Locale.US, share)}% share", color = RonasColors.TextMuted, fontSize = 11.sp, maxLines = 1)
                         }
-                        Text(text = "\u20B9${formatCompactAmount(row.curr)}", color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1)
-                        Text(text = "\u20B9${formatCompactAmount(row.prev)}", color = RonasColors.TextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1)
+                        Text(text = "\u20B9${formatCompactAmount(row.curr)}", color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1, softWrap = false)
+                        Text(text = "\u20B9${formatCompactAmount(row.prev)}", color = RonasColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(0.85f), maxLines = 1, softWrap = false)
                         Column(modifier = Modifier.weight(0.95f), horizontalAlignment = Alignment.End) {
                             Text(text = deltaTop, color = deltaColor, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, maxLines = 1)
                             Text(text = deltaBot, color = deltaColor, fontSize = 11.sp, textAlign = TextAlign.End, maxLines = 1)

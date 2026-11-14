@@ -298,7 +298,7 @@ fun RonasDualBarChart(
     onBarSelected: ((Int) -> Unit)? = null,
 ) {
     val maxValue = ((primaryValues + secondaryValues).maxOrNull() ?: 1f).coerceAtLeast(1f)
-    val chartHeight = 180.dp
+    val chartHeight = 190.dp
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().height(chartHeight),
@@ -320,21 +320,21 @@ fun RonasDualBarChart(
                         )
                         .border(
                             1.dp,
-                            if (selected) RonasColors.GrowthGreen.copy(alpha = 0.45f) else androidx.compose.ui.graphics.Color.Transparent,
+                            if (selected) RonasColors.GrowthGreen.copy(alpha = 0.6f) else androidx.compose.ui.graphics.Color.Transparent,
                             RoundedCornerShape(10.dp),
                         )
-                        .padding(horizontal = 2.dp, vertical = 4.dp),
+                        .padding(horizontal = 2.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(chartHeight * 0.85f),
+                            .height(120.dp),
                         contentAlignment = Alignment.BottomCenter,
                     ) {
                         Row(
                             verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                         ) {
                             Box(
                                 modifier = Modifier
@@ -352,11 +352,12 @@ fun RonasDualBarChart(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = month,
                         color = if (selected) RonasColors.GrowthGreen else RonasColors.TextMuted,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
+                    lineHeight = 14.sp,
                         fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
                         maxLines = 1,
                         softWrap = false,
