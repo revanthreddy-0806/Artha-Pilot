@@ -224,7 +224,7 @@ fun RecurringScreen(
                         }
                     }
                     items(sorted, key = { it.transactionId }) { item ->
-                        RecurringCard(item = item, totalMonthly = totalMonthly, onClick = { selectedRecurring = item })
+                        RecurringCard(item = item, totalMonthly = totalMonthly, transactions = uiState.transactions, onClick = { selectedRecurring = item })
                     }
                 }
             }
@@ -283,6 +283,29 @@ fun RecurringScreen(
 }
 
 @Composable
+private fun resolveCategory(item: RecurringItem, transactions: List<Transaction>): String {
+    val cat = item.category.trim()
+    if (cat.isNotBlank() && !cat.equals("RECURRING", ignoreCase = true) && !cat.equals("Bills & Recurring", ignoreCase = true) && !cat.equals("Uncategorized", ignoreCase = true)) {
+        return cat
+    }
+    val match = transactions.firstOrNull { t ->
+        t.description.contains(item.description.take(8), ignoreCase = true)
+    }?.category
+    if (!match.isNullOrBlank()) return match
+    val desc = item.description.uppercase(Locale.US)
+    return when {
+        desc.contains("BIGBASKET") || desc.contains("DMART") || desc.contains("GROCERY") || desc.contains("SUPERMARKET") -> "Groceries"
+        desc.contains("SWIGGY") || desc.contains("ZOMATO") || desc.contains("FOOD") -> "Food & Dining"
+        desc.contains("GYM") || desc.contains("CULT") || desc.contains("FITNESS") -> "Health & Fitness"
+        desc.contains("RENT") -> "Rent"
+        desc.contains("SIP") || desc.contains("MUTUAL") || desc.contains("INVEST") -> "Investments"
+        desc.contains("NETFLIX") || desc.contains("SPOTIFY") || desc.contains("PRIME") || desc.contains("SUBSCRIPTION") -> "Subscriptions"
+        item.kind == "emi" -> "EMI"
+        else -> "Uncategorized"
+    }
+}
+
+@Composable
 private fun MetricCell(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(text = label, fontSize = 11.sp, color = RonasColors.TextMuted)
@@ -291,9 +314,8 @@ private fun MetricCell(label: String, value: String, color: Color, modifier: Mod
 }
 
 @Composable
-private fun RecurringCard(item: RecurringItem, totalMonthly: Double, onClick: () -> Unit) {
+private fun RecurringCard(item: RecurringItem, totalMonthly: Double, transactions: List<Transaction>, onClick: () -> Unit) {
     val isEmi = item.kind == "emi"
-    val accent = if (isEmi) RonasColors.DeclineRed else RonasColors.GrowthGreen
     val essentialCategories = setOf("Rent", "Utilities", "Bills & Recurring", "Investments", "Transfers")
     val isEssential = isEmi || item.category in essentialCategories
     val share = item.amount / totalMonthly.coerceAtLeast(0.001) * 100.0
@@ -321,8 +343,8 @@ private fun RecurringCard(item: RecurringItem, totalMonthly: Double, onClick: ()
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = accent.copy(alpha = 0.15f), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, accent)) {
-                    Text(text = if (isEmi) "EMI" else "RECURRING", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                Surface(color = RonasColors.GrowthGreen.copy(alpha = 0.15f), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen)) {
+                    Text(text = resolveCategory(item, transactions), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RonasColors.GrowthGreen, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), maxLines = 1)
                 }
                 Surface(color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
                     Text(text = "Monthly", fontSize = 11.sp, color = RonasColors.TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
