@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -30,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -43,6 +47,10 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,6 +64,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import java.util.Locale
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arthapilot.app.domain.model.Alert
@@ -64,6 +74,7 @@ import com.arthapilot.app.ui.theme.RonasColors
 import com.arthapilot.app.ui.theme.RonasCard
 import com.arthapilot.app.ui.theme.RonasPillButton
 import com.arthapilot.app.ui.theme.RonasMetricItem
+import com.arthapilot.app.ui.theme.RonasTickStripBar
 import com.arthapilot.app.ui.theme.RonasCircularBadge
 import com.arthapilot.app.ui.theme.RonasCategoryTable
 import com.arthapilot.app.ui.theme.RonasCategoryRow
@@ -76,14 +87,25 @@ fun HomeScreen(
     onLogout: () -> Unit,
     refreshSignal: Boolean = false,
     onRefreshHandled: () -> Unit = {},
+    onNavigateToAssistant: () -> Unit = {},
     viewModel: TransactionsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var isBalanceHidden by remember { mutableStateOf(false) }
+    var selectedMonthFilter by remember { mutableStateOf("All Time") }
+    var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
+    var monthFilterExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var txnTypeFilter by remember { mutableStateOf("ALL") }
+    var txnSortOrder by remember { mutableStateOf("NEWEST") }
+    var txnFilterExpanded by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
+    val availableMonths = uiState.transactions.map { it.date.take(7) }.distinct().sortedDescending()
+    val periodTransactions = if (selectedMonthFilter == "All Time") uiState.transactions else uiState.transactions.filter { it.date.startsWith(selectedMonthFilter) }
 
     LaunchedEffect(refreshSignal) {
         if (refreshSignal) {
@@ -126,9 +148,20 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        val totalIncome = uiState.transactions.filter { it.transactionType == "credit" }.sumOf { it.amount }
-        val totalExpenses = uiState.transactions.filter { it.transactionType == "debit" }.sumOf { it.amount }
+        val totalIncome = periodTransactions.filter { it.transactionType == "credit" }.sumOf { it.amount }
+        val totalExpenses = periodTransactions.filter { it.transactionType == "debit" }.sumOf { it.amount }
         val netFlow = totalIncome - totalExpenses
+        val typeFiltered = periodTransactions.filter { txn ->
+            (selectedCategoryFilter == null || txn.category == selectedCategoryFilter) &&
+                (searchQuery.isBlank() || txn.description.contains(searchQuery, ignoreCase = true) || txn.category.contains(searchQuery, ignoreCase = true) || txn.amount.toString().contains(searchQuery)) &&
+                (txnTypeFilter == "ALL" || (txnTypeFilter == "INCOME" && txn.transactionType == "credit") || (txnTypeFilter == "EXPENSE" && txn.transactionType == "debit"))
+        }
+        val filteredTransactions = when (txnSortOrder) {
+            "OLDEST" -> typeFiltered.sortedBy { it.date }
+            "HIGHEST" -> typeFiltered.sortedByDescending { it.amount }
+            "LOWEST" -> typeFiltered.sortedBy { it.amount }
+            else -> typeFiltered.sortedByDescending { it.date }
+        }
         val dotColors = listOf(
             RonasColors.TextPrimary,
             RonasColors.TextSecondary,
@@ -136,7 +169,7 @@ fun HomeScreen(
             RonasColors.DividerMuted,
             RonasColors.BorderSubtle,
         )
-        val categoryRows = uiState.transactions
+        val categoryRows = periodTransactions
             .groupBy { it.category to it.transactionType }
             .map { (key, txs) ->
                 RonasCategoryRow(
@@ -154,39 +187,51 @@ fun HomeScreen(
             item {
                 RonasCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Cashflow summary",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = RonasColors.TextPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = "Portfolio Overview", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Surface(onClick = { isBalanceHidden = !isBalanceHidden }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                                Text(text = if (isBalanceHidden) "Show \u25CE" else "Hide \u25C9", fontSize = 11.sp, color = RonasColors.TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box {
+                                Surface(onClick = { monthFilterExpanded = true }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen)) {
+                                    Text(text = "$selectedMonthFilter \u25BE", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.GrowthGreen, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                }
+                                DropdownMenu(expanded = monthFilterExpanded, onDismissRequest = { monthFilterExpanded = false }, containerColor = RonasColors.SurfaceElevated, border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                                    DropdownMenuItem(text = { Text("All Time", color = if (selectedMonthFilter == "All Time") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { selectedMonthFilter = "All Time"; monthFilterExpanded = false })
+                                    availableMonths.forEach { m ->
+                                        val label = m.takeLast(2) + "/" + m.take(4).takeLast(2)
+                                        DropdownMenuItem(text = { Text(label, color = if (selectedMonthFilter == m) RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { selectedMonthFilter = m; monthFilterExpanded = false })
+                                    }
+                                }
+                            }
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            RonasMetricItem(
-                                label = "Income",
-                                value = "₹${"%.0f".format(totalIncome)}",
-                                valueColor = RonasColors.GrowthGreen,
-                                indicator = "↑",
-                                indicatorColor = RonasColors.GrowthGreen,
-                                modifier = Modifier.weight(1f),
-                            )
-                            RonasMetricItem(
-                                label = "Expenses",
-                                value = "₹${"%.0f".format(totalExpenses)}",
-                                valueColor = RonasColors.DeclineRed,
-                                indicator = "↓",
-                                indicatorColor = RonasColors.DeclineRed,
-                                modifier = Modifier.weight(1f),
-                            )
-                            RonasMetricItem(
-                                label = "Net flow",
-                                value = "₹${"%.0f".format(netFlow)}",
-                                modifier = Modifier.weight(1f),
-                            )
+                            val incomeVal = if (isBalanceHidden) "\u20B9 \u2022\u2022\u2022\u2022\u2022\u2022" else "+\u20B9${"%.0f".format(totalIncome)}"
+                            val expenseVal = if (isBalanceHidden) "\u20B9 \u2022\u2022\u2022\u2022\u2022\u2022" else "-\u20B9${"%.0f".format(totalExpenses)}"
+                            val netVal = if (isBalanceHidden) "\u20B9 \u2022\u2022\u2022\u2022\u2022\u2022" else "\u20B9${"%.0f".format(netFlow)}"
+                            RonasMetricItem(label = "Income", value = incomeVal, valueColor = RonasColors.GrowthGreen, indicator = "\u2191", indicatorColor = RonasColors.GrowthGreen, modifier = Modifier.weight(1f))
+                            RonasMetricItem(label = "Expenses", value = expenseVal, valueColor = RonasColors.DeclineRed, indicator = "\u2193", indicatorColor = RonasColors.DeclineRed, modifier = Modifier.weight(1f))
+                            RonasMetricItem(label = "Net Cashflow", value = netVal, valueColor = if (netFlow >= 0) RonasColors.GrowthGreen else RonasColors.DeclineRed, modifier = Modifier.weight(1f))
+                        }
+                        val savingsRate = if (totalIncome > 0) (totalIncome - totalExpenses) / totalIncome * 100.0 else 0.0
+                        RonasTickStripBar(primaryFraction = (totalIncome / (totalIncome + totalExpenses).coerceAtLeast(0.001)).toFloat().coerceIn(0f, 1f), secondaryFraction = (totalExpenses / (totalIncome + totalExpenses).coerceAtLeast(0.001)).toFloat().coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth())
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Savings Rate: ${"%.1f".format(Locale.US, savingsRate)}%", fontSize = 12.sp, color = RonasColors.TextMuted)
+                            Text(text = "${periodTransactions.size} txns in period", fontSize = 12.sp, color = RonasColors.TextMuted)
                         }
                     }
+                }
+            }
+
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuickActionPill(text = "+ Add Txn", onClick = { /* existing add handled via top bar */ }, modifier = Modifier.weight(1f))
+                    QuickActionPill(text = "Upload", onClick = onUploadClick, modifier = Modifier.weight(1f))
+                    QuickActionPill(text = "Statements", onClick = onStatementsClick, modifier = Modifier.weight(1f))
+                    QuickActionPill(text = "Ask AI", onClick = onNavigateToAssistant, modifier = Modifier.weight(1f))
                 }
             }
 
@@ -194,7 +239,31 @@ fun HomeScreen(
                 item {
                     RonasCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            RonasCategoryTable(rows = categoryRows)
+                            Text(text = "Tap any category to filter transactions", fontSize = 12.sp, color = RonasColors.TextMuted)
+                            RonasCategoryTable(rows = categoryRows, selectedCategory = selectedCategoryFilter, onCategoryClick = { cat -> selectedCategoryFilter = if (selectedCategoryFilter == cat) null else cat })
+                        }
+                    }
+                }
+            }
+
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Transactions (${filteredTransactions.size})", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Box {
+                        Surface(onClick = { txnFilterExpanded = true }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                            Icon(imageVector = Icons.Default.FilterList, contentDescription = "Filter transactions", tint = RonasColors.TextSecondary, modifier = Modifier.padding(8.dp).size(18.dp))
+                        }
+                        DropdownMenu(expanded = txnFilterExpanded, onDismissRequest = { txnFilterExpanded = false }, containerColor = RonasColors.SurfaceElevated, border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                            Text(text = "Type", fontSize = 11.sp, color = RonasColors.TextMuted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                            DropdownMenuItem(text = { Text("All Types", color = if (txnTypeFilter == "ALL") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { txnTypeFilter = "ALL"; txnFilterExpanded = false })
+                            DropdownMenuItem(text = { Text("Income Only (+\u20B9)", color = if (txnTypeFilter == "INCOME") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { txnTypeFilter = "INCOME"; txnFilterExpanded = false })
+                            DropdownMenuItem(text = { Text("Expenses Only (-\u20B9)", color = if (txnTypeFilter == "EXPENSE") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { txnTypeFilter = "EXPENSE"; txnFilterExpanded = false })
+                            HorizontalDivider(color = RonasColors.BorderSubtle, thickness = 1.dp)
+                            Text(text = "Sort", fontSize = 11.sp, color = RonasColors.TextMuted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                            DropdownMenuItem(text = { Text("Newest First", color = if (txnSortOrder == "NEWEST") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { txnSortOrder = "NEWEST"; txnFilterExpanded = false })
+                            DropdownMenuItem(text = { Text("Oldest First", color = if (txnSortOrder == "OLDEST") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { txnSortOrder = "OLDEST"; txnFilterExpanded = false })
+                            DropdownMenuItem(text = { Text("Highest Amount \u2193", color = if (txnSortOrder == "HIGHEST") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { txnSortOrder = "HIGHEST"; txnFilterExpanded = false })
+                            DropdownMenuItem(text = { Text("Lowest Amount \u2191", color = if (txnSortOrder == "LOWEST") RonasColors.GrowthGreen else RonasColors.TextPrimary) }, onClick = { txnSortOrder = "LOWEST"; txnFilterExpanded = false })
                         }
                     }
                 }
@@ -202,14 +271,14 @@ fun HomeScreen(
 
             item {
                 OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = viewModel::setSearchQuery,
-                    label = { Text("Search transactions") },
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search merchant, narration, category, or amount...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
-                        if (uiState.searchQuery.isNotBlank()) {
-                            IconButton(onClick = viewModel::clearSearch) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Text("\u2715", color = RonasColors.TextSecondary)
                             }
                         }
                     },
@@ -218,63 +287,25 @@ fun HomeScreen(
                 )
             }
 
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(
-                        selected = uiState.transactionTypeFilter == null,
-                        onClick = { viewModel.setTransactionTypeFilter(null) },
-                        label = { Text("All") },
-                    )
-                    FilterChip(
-                        selected = uiState.transactionTypeFilter == "credit",
-                        onClick = { viewModel.setTransactionTypeFilter("credit") },
-                        label = { Text("Income") },
-                    )
-                    FilterChip(
-                        selected = uiState.transactionTypeFilter == "debit",
-                        onClick = { viewModel.setTransactionTypeFilter("debit") },
-                        label = { Text("Expense") },
-                    )
-                    FilterChip(
-                        selected = false,
-                        onClick = viewModel::clearFilters,
-                        label = { Text("Clear filters") },
-                    )
+            val hasActiveFilters = selectedMonthFilter != "All Time" || selectedCategoryFilter != null || txnTypeFilter != "ALL" || searchQuery.isNotBlank()
+            if (hasActiveFilters) {
+                item {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (selectedMonthFilter != "All Time") {
+                            Surface(onClick = { selectedMonthFilter = "All Time" }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen)) {
+                                Text(text = "Month: $selectedMonthFilter \u2715", fontSize = 11.sp, color = RonasColors.GrowthGreen, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            }
+                        }
+                        if (selectedCategoryFilter != null) {
+                            Surface(onClick = { selectedCategoryFilter = null }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen)) {
+                                Text(text = "Category: $selectedCategoryFilter \u2715", fontSize = 11.sp, color = RonasColors.GrowthGreen, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            }
+                        }
+                        Surface(onClick = { selectedMonthFilter = "All Time"; selectedCategoryFilter = null; txnTypeFilter = "ALL"; searchQuery = "" }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                            Text(text = "Clear All", fontSize = 11.sp, color = RonasColors.TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        }
+                    }
                 }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = uiState.minAmount,
-                        onValueChange = viewModel::setMinAmount,
-                        label = { Text("Min") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = uiState.maxAmount,
-                        onValueChange = viewModel::setMaxAmount,
-                        label = { Text("Max") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = viewModel::applyAmountFilters) { Text("Apply") }
-                }
-            }
-
-            item {
-                CategoryFilterRow(
-                    options = uiState.categoryOptions,
-                    selected = uiState.categoryFilter,
-                    onSelect = viewModel::setCategoryFilter,
-                )
             }
 
             if (uiState.alerts.isNotEmpty()) {
@@ -289,7 +320,7 @@ fun HomeScreen(
                         }
                     }
                 }
-                uiState.transactions.isEmpty() -> {
+                filteredTransactions.isEmpty() -> {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -311,13 +342,23 @@ fun HomeScreen(
                             )
                         }
                     }
-                    items(uiState.transactions, key = { it.id }) { transaction ->
-                        TransactionCard(
-                            transaction = transaction,
-                            onClick = { selectedTransaction = transaction },
-                            onEdit = { editingTransaction = transaction },
-                            onDelete = { transactionToDelete = transaction },
-                        )
+                    val grouped = filteredTransactions.groupBy { it.date }
+                    grouped.forEach { (date, dayTxns) ->
+                        item {
+                            Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = date, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RonasColors.TextSecondary)
+                                val dayNet = dayTxns.sumOf { it.amount * if (it.transactionType == "credit") 1 else -1 }
+                                Text(text = "Day Net: ${if (dayNet >= 0) "+" else "-"}\u20B9${String.format(Locale.US, "%,.2f", kotlin.math.abs(dayNet))} \u2022 ${dayTxns.size} txns", fontSize = 12.sp, color = if (dayNet >= 0) RonasColors.GrowthGreen else RonasColors.TextMuted)
+                            }
+                        }
+                        items(dayTxns, key = { it.id }) { transaction ->
+                            TransactionCard(
+                                transaction = transaction,
+                                onClick = { selectedTransaction = transaction },
+                                onEdit = { editingTransaction = transaction },
+                                onDelete = { transactionToDelete = transaction },
+                            )
+                        }
                     }
                     if (uiState.hasMore) {
                         item {
@@ -337,15 +378,42 @@ fun HomeScreen(
     }
 
     selectedTransaction?.let { transaction ->
-        CategoryCorrectionDialog(
-            transaction = transaction,
-            choices = uiState.categoryOptions,
-            onDismiss = { selectedTransaction = null },
-            onConfirm = { category ->
-                viewModel.updateCategory(transaction.id, category)
-                selectedTransaction = null
-            },
-        )
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val categoryTotal = periodTransactions.filter { it.category == transaction.category }.sumOf { it.amount }
+        val categoryCount = periodTransactions.count { it.category == transaction.category }
+        val share = if (categoryTotal != 0.0) transaction.amount / categoryTotal * 100.0 else 0.0
+        ModalBottomSheet(onDismissRequest = { selectedTransaction = null }, sheetState = sheetState, containerColor = Color(0xFF111314)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(text = if (transaction.transactionType == "credit") "+\u20B9${formatAmount(transaction.amount)}" else "-\u20B9${formatAmount(transaction.amount)}", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = if (transaction.transactionType == "credit") RonasColors.GrowthGreen else RonasColors.DeclineRed)
+                Text(text = transaction.description, fontSize = 14.sp, color = RonasColors.TextPrimary)
+                Surface(color = Color(0xFF16191A), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle)) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Date", fontSize = 12.sp, color = RonasColors.TextMuted)
+                            Text(text = transaction.date, fontSize = 12.sp, color = RonasColors.TextPrimary)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Category", fontSize = 12.sp, color = RonasColors.TextMuted)
+                            Surface(color = RonasColors.GrowthGreen.copy(alpha = 0.15f), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen)) {
+                                Text(text = transaction.category, fontSize = 11.sp, color = RonasColors.GrowthGreen, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                            }
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Category Total (Period)", fontSize = 12.sp, color = RonasColors.TextMuted)
+                            Text(text = "\u20B9${formatAmount(categoryTotal)} across $categoryCount txns", fontSize = 12.sp, color = RonasColors.TextPrimary)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Share of Category", fontSize = 12.sp, color = RonasColors.TextMuted)
+                            Text(text = "${"%.1f".format(Locale.US, share)}%", fontSize = 12.sp, color = RonasColors.TextPrimary)
+                        }
+                    }
+                }
+                Surface(onClick = { selectedCategoryFilter = transaction.category; selectedTransaction = null }, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.GrowthGreen), modifier = Modifier.fillMaxWidth()) {
+                    Text(text = "Filter Home by ${transaction.category}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.GrowthGreen, modifier = Modifier.padding(12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
     }
 
     if (showCreateDialog) {
@@ -519,6 +587,13 @@ private fun TransactionCard(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun QuickActionPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(onClick = onClick, color = RonasColors.SurfaceElevated, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, RonasColors.BorderSubtle), modifier = modifier) {
+        Text(text = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = RonasColors.TextPrimary, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
